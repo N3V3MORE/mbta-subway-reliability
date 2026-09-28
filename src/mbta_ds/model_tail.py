@@ -1,0 +1,155 @@
+"""Tail models: will the train be 10+ minutes late, and what range to expect?
+
+The delay model predicts the *typical* outcome, which is exactly what fails on bad
+days. This stage asks the two questions a rider has when things go wrong, k stops
+before the train reaches their station:
+
+* **Early warning** -- the probability the train is more than 10 minutes late on
+  arrival. About 9% of arrivals are, but nearly all of those trains are *already*
+  that late (delay is sticky), so any method catches them. The honest test is
+  **onsets**: trains under 5 minutes late now that end up 10+ minutes late (1,254
+  one stop ahead, 4,097 five stops ahead in the test period). They are scored apart.
+* **Ranges** -- a 10th-90th percentile band for the delay, judged by how often the
+  truth falls inside (it should be ~80%) and how wide the band is.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.metrics import average_precision_score, precision_recall_curve
+
+from . import config, features, model_delay as md
+from .progress import Progress
+
+log = logging.getLogger(__name__)
+
+METRICS_PATH = config.PROCESSED_DIR / "tail_metrics.json"
+
+BIG_DELAY_SECONDS = 600               # "10+ minutes late"
+ONSET_BELOW_SECONDS = config.LATE_THRESHOLD_SECONDS   # "on time now": under 5 min late
+HORIZONS = (1, 5)
+QUANTILES = (0.1, 0.5, 0.9)
+#: Recall is reported at this precision: of the trains flagged, half really are 10+ late.
+TARGET_PRECISION = 0.5
+CALIBRATION_EDGES = (0.0, 0.02, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0)
+
+
+# ---------------------------------------------------------------------------
+# Metrics
+# ---------------------------------------------------------------------------
+def recall_at_precision(y: np.ndarray, score: np.ndarray, precision: float) -> float:
+    """Largest share of positives caught while keeping precision >= ``precision``."""
+    if not np.any(y):
+        return float("nan")
+    p, r, _ = precision_recall_curve(y, score)
+    ok = p >= precision
+    return float(r[ok].max()) if ok.any() else 0.0
+
+
+def warning_metrics(y: np.ndarray, score: np.ndarray) -> dict:
+    return {"n": int(len(y)), "positives": int(np.sum(y)),
+            "pr_auc": float(average_precision_score(y, score)) if np.any(y) else float("nan"),
+            "recall_at_50pct_precision": recall_at_precision(y, score, TARGET_PRECISION)}
+
+
+def calibration_table(y: np.ndarray, proba: np.ndarray) -> pd.DataFrame:
+    """Predicted probability vs how often it actually happened, per probability bin."""
+    bins = pd.cut(proba, CALIBRATION_EDGES, include_lowest=True)
+    table = pd.DataFrame({"y": y, "p": proba, "bin": bins}).groupby("bin", observed=True).agg(
+        arrivals=("y", "size"), predicted=("p", "mean"), observed=("y", "mean"))
+    return table.reset_index().assign(bin=lambda t: t["bin"].astype(str))
+
+
+def band_metrics(y: np.ndarray, low: np.ndarray, high: np.ndarray) -> dict:
+    """Coverage and width of a prediction band."""
+    return {"coverage": float(np.mean((y >= low) & (y <= high))),
+            "median_width_seconds": float(np.median(high - low))}
+
+
+def pinball_loss(y: np.ndarray, predicted: np.ndarray, q: float) -> float:
+    """The loss quantile regression minimises; lower is better."""
+    diff = y - predicted
+    return float(np.mean(np.maximum(q * diff, (q - 1) * diff)))
+
+
+# ---------------------------------------------------------------------------
+# One horizon
+# ---------------------------------------------------------------------------
+def evaluate_horizon(k: int, *, quick: bool) -> dict:
+    """Fit and score the early-warning and range models for ``k`` stops ahead."""
+    frame = features.build(horizon=k, no_cache=True,
+                           max_rows=features.QUICK_MAX_ROWS if quick else None)
+    frame["big_delay"] = (frame["delay_seconds"] > BIG_DELAY_SECONDS).astype(int)
+    split = md.temporal_split(frame)
+    train = features.stratified_sample(split.train, md.TRAIN_ROWS // 4 if quick else md.TRAIN_ROWS,
+                                       md.SEED)
+    test = split.test
+    numeric, categorical = md._columns(train)
+    X = test[numeric + categorical]
+    y = test["big_delay"].to_numpy()
+    onset = (test["prev_delay_1"] < ONSET_BELOW_SECONDS).to_numpy()
+
+    classifier = md._fit(
+        HistGradientBoostingClassifier(categorical_features="from_dtype",
+                                       max_iter=150 if quick else 300, learning_rate=0.08,
+                                       early_stopping=True, random_state=md.SEED),
+        train, numeric, categorical, "big_delay")
+    scores = {
+        "model": classifier.predict_proba(X)[:, 1],
+        # Baselines rank trains by one signal each; higher means "more likely late".
+        "baseline: how late the train is now": test["prev_delay_1"].to_numpy(dtype=float),
+        "baseline: how late the line is now": test["line_late_share_15m"].fillna(0).to_numpy(),
+    }
+    warning = [{"horizon_stops": k, "method": name, "subset": subset,
+                **warning_metrics(y[mask], score[mask])}
+               for name, score in scores.items()
+               for subset, mask in (("all arrivals", np.ones_like(onset)), ("onsets", onset))]
+
+    delay = test["delay_seconds"].to_numpy()
+    q = {level: md._fit(md._boost(quick, loss="quantile", quantile=level), train, numeric,
+                        categorical, "delay_seconds").predict(X)
+         for level in QUANTILES}
+    days = md.day_type(test)
+    ranges = [{"horizon_stops": k, "day_type": label,
+               **band_metrics(delay[m], q[0.1][m], q[0.9][m]),
+               "median_abs_error_seconds": float(np.median(np.abs(delay[m] - q[0.5][m]))),
+               "pinball_q90": pinball_loss(delay[m], q[0.9][m], 0.9)}
+              for label, m in (("all", np.ones(len(test), bool)), ("normal", days == "normal"),
+                               ("disrupted", days == "disrupted"))]
+
+    calibration = calibration_table(y, scores["model"]).assign(horizon_stops=k)
+    return {"warning": warning, "ranges": ranges, "calibration": calibration.to_dict("records"),
+            "base_rate": float(y.mean()), "onsets": int((y.astype(bool) & onset).sum())}
+
+
+def run(*, quick: bool = False) -> dict:
+    """Stage entry point: every horizon, persisted for the figures and report."""
+    config.ensure_dirs()
+    results: dict[str, list] = {"warning": [], "ranges": [], "calibration": [], "summary": []}
+    horizons = HORIZONS[:1] if quick else HORIZONS
+    with Progress(len(horizons), "tail models") as progress:
+        for k in horizons:
+            out = evaluate_horizon(k, quick=quick)
+            for key in ("warning", "ranges", "calibration"):
+                results[key] += out[key]
+            results["summary"].append({"horizon_stops": k, "base_rate": out["base_rate"],
+                                       "onsets": out["onsets"]})
+            model_all = next(r for r in out["warning"]
+                             if r["method"] == "model" and r["subset"] == "all arrivals")
+            band = next(r for r in out["ranges"] if r["day_type"] == "all")
+            progress.step(f"{k} stop(s) ahead",
+                          extra=f"PR-AUC {model_all['pr_auc']:.3f}  band coverage {band['coverage']:.0%}")
+    METRICS_PATH.write_text(json.dumps(results, indent=2, default=str), encoding="utf-8")
+    log.info("tail metrics -> %s", METRICS_PATH.name)
+    return {"horizons": list(horizons)}
+
+
+def load_metrics() -> dict:
+    if not METRICS_PATH.exists():
+        raise FileNotFoundError(f"{METRICS_PATH} missing; run the `tail` stage first")
+    return json.loads(METRICS_PATH.read_text(encoding="utf-8"))

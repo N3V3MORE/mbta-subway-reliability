@@ -17,7 +17,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from . import cluster_stations, config, model_delay
+from . import cluster_stations, config, model_delay, model_tail
 
 log = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ img{max-width:100%;border:1px solid #dde1ea;border-radius:6px;background:#fff}
 
 #: Columns whose values live in 0..1 and need three decimals to be told apart.
 THREE_DECIMALS = {"R²", "F1", "Precision", "Recall", "ROC-AUC", "PR-AUC", "Accuracy",
-                  "Share not >5 min late", "value"}
+                  "Coverage", "Share not >5 min late", "value"}
 
 
 def _cell(value, decimals: int) -> str:
@@ -144,6 +144,18 @@ def tables() -> dict[str, pd.DataFrame]:
             columns={"step": "Cleaning step", "rows_removed": "Rows removed"}),
         "validation": pd.read_csv(config.PROCESSED_DIR / "validation.csv"),
     }
+    try:
+        tail = model_tail.load_metrics()
+    except FileNotFoundError:
+        return out
+    out["early_warning"] = pd.DataFrame(tail["warning"]).rename(columns={
+        "horizon_stops": "Stops ahead", "method": "Method", "subset": "Trains",
+        "n": "Arrivals", "positives": "10+ min late", "pr_auc": "PR-AUC",
+        "recall_at_50pct_precision": "Recall"})
+    out["ranges"] = pd.DataFrame(tail["ranges"]).rename(columns={
+        "horizon_stops": "Stops ahead", "day_type": "Route-days", "coverage": "Coverage",
+        "median_width_seconds": "Median band width (s)",
+        "median_abs_error_seconds": "Median error (s)", "pinball_q90": "Pinball loss, 90th pct"})
     return out
 
 
@@ -175,41 +187,69 @@ def build() -> dict:
     ]
     links = "".join(f'<li><a href="figures/{p.name}">{p.stem.replace("_", " ")}</a></li>'
                     for p in sorted(config.FIGURES_DIR.glob("*.html")))
+    # (title, body) pairs; numbering is added below so sections can be inserted freely.
     sections = [
-        f"<h1>MBTA subway delays: results</h1><p class='lead'>Service dates {window['start']} to "
-        f"{window['end']}. Regenerate with <code>make all</code> (or <code>.\\make.ps1 all</code>). "
-        f"Every table below is also saved as CSV in <code>reports/tables/</code>.</p>",
-        '<div class="cards">' + "".join(f"<div class='card'><b>{v}</b><span>{k}</span></div>"
-                                        for v, k in cards) + "</div>",
-        "<h2>1. Predicting the next stop's delay</h2>"
-        "<p>MAE is the average size of the error in seconds; lower is better. Test set: every "
-        f"arrival after {_date(metrics['split']['cutoff_service_date'])} ({metrics['split']['n_test']:,} "
-        "arrivals), none of which the models saw in training.</p>" + _table(t["regression"]),
-        "<h2>2. Does it hold on other weeks?</h2><p>The model refit before each two-week window "
-        "and scored on it. Consistent improvement across windows means the result is not one lucky "
-        "test period.</p>" + _table(t["backtest"]),
-        "<h2>3. Predicting further ahead</h2><p>How well can a train's delay be predicted several "
-        "stops before it gets there? \"Other trains\" adds what the train ahead and the rest of the "
-        "line were doing at the time of the prediction.</p>" + _table(t["horizons"]),
-        "<h2>4. Which information helps</h2><p>Error as groups of features are added. Differences "
-        "smaller than the seed spread are noise.</p>" + _table(t["ablation"]) + _image("ablation"),
-        "<h2>5. Where the errors are</h2>" + _table(t["error_by_route"]) + _table(t["error_by_day_type"])
-        + f"<p class='note'>A route-day is \"disrupted\" when at least "
-        f"{model_delay.DISRUPTED_SHARE:.0%} of its arrivals were more than 10 minutes late: roughly "
-        "the worst eighth of route-days. Those few days carry a large share of the error.</p>"
-        + _image("predicted_vs_actual"),
-        "<h2>6. Will the train be more than 5 minutes late?</h2>" + _table(t["classification"], 3),
-        "<h2>7. Stations</h2>" + _image("delay_heatmap") + _table(t["stations"]),
-        "<h2>8. Data quality</h2><p>How many rows each cleaning rule removed, and every automated "
-        "check with its measured value.</p>" + _table(t["cleaning"], 0) + _table(
-            validation.assign(result=validation.apply(
-                lambda r: "pass" if r["ok"] else ("FAIL" if r["hard"] else "info"), axis=1))
-            [["source", "check", "value", "op", "limit", "result"]], 4),
-        f"<h2>9. Interactive figures</h2><ul>{links}</ul>",
+        ("Predicting the next stop's delay",
+         "<p>MAE is the average size of the error in seconds; lower is better. Test set: every "
+         f"arrival after {_date(metrics['split']['cutoff_service_date'])} "
+         f"({metrics['split']['n_test']:,} arrivals), none of which the models saw in training.</p>"
+         + _table(t["regression"])),
+        ("Does it hold on other weeks?",
+         "<p>The model refit before each two-week window and scored on it. Consistent improvement "
+         "across windows means the result is not one lucky test period.</p>" + _table(t["backtest"])),
+        ("Predicting further ahead",
+         "<p>How well can a train's delay be predicted several stops before it gets there? "
+         "\"Other trains\" adds what the train ahead and the rest of the line were doing at the "
+         "time of the prediction.</p>" + _table(t["horizons"])),
     ]
+    if "early_warning" in t:
+        sections += [
+            ("Will it be 10+ minutes late?",
+             "<p>PR-AUC measures how well each method ranks the trains that will be 10+ minutes "
+             "late above the rest (1 = perfect; a random guess scores the share that are late). "
+             "\"Recall\" is the share of those trains caught while keeping at least half of the "
+             "alarms correct.</p><p><b>Onsets</b> are the hard cases: trains under 5 minutes late "
+             "at the time of the prediction that end up 10+ minutes late. Almost every other late "
+             "train is already late, which any method can spot.</p>"
+             + _table(t["early_warning"], 3)
+             + "<p>The predicted probabilities can be taken at face value: when the model says "
+             "30%, about that share of trains really are 10+ minutes late.</p>"
+             + _image("calibration")),
+            ("Prediction ranges",
+             "<p>Instead of a single number, a range the delay should fall inside 80% of the time "
+             "(10th to 90th percentile). \"Coverage\" is how often it actually did.</p>"
+             + _table(t["ranges"])),
+        ]
+    sections += [
+        ("Which information helps",
+         "<p>Error as groups of features are added. Differences smaller than the seed spread are "
+         "noise.</p>" + _table(t["ablation"]) + _image("ablation")),
+        ("Where the errors are",
+         _table(t["error_by_route"]) + _table(t["error_by_day_type"])
+         + f"<p class='note'>A route-day is \"disrupted\" when at least "
+         f"{model_delay.DISRUPTED_SHARE:.0%} of its arrivals were more than 10 minutes late: "
+         "roughly the worst eighth of route-days. Those few days carry a large share of the "
+         "error.</p>" + _image("predicted_vs_actual")),
+        ("Will the train be more than 5 minutes late?", _table(t["classification"], 3)),
+        ("Stations", _image("delay_heatmap") + _table(t["stations"])),
+        ("Data quality",
+         "<p>How many rows each cleaning rule removed, and every automated check with its "
+         "measured value.</p>" + _table(t["cleaning"], 0) + _table(
+             validation.assign(result=validation.apply(
+                 lambda r: "pass" if r["ok"] else ("FAIL" if r["hard"] else "info"), axis=1))
+             [["source", "check", "value", "op", "limit", "result"]], 4)),
+        ("Interactive figures", f"<ul>{links}</ul>"),
+    ]
+    head = (f"<h1>MBTA subway delays: results</h1><p class='lead'>Service dates {window['start']} "
+            f"to {window['end']}. Regenerate with <code>make all</code> (or <code>.\\make.ps1 "
+            f"all</code>). Every table below is also saved as CSV in <code>reports/tables/</code>."
+            "</p><div class='cards'>" + "".join(f"<div class='card'><b>{v}</b><span>{k}</span></div>"
+                                              for v, k in cards) + "</div>")
+    body = head + "".join(f"<h2>{i}. {html.escape(title)}</h2>{content}"
+                          for i, (title, content) in enumerate(sections, 1))
     page = (f"<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' "
             f"content='width=device-width,initial-scale=1'><title>MBTA delay results</title>"
-            f"<style>{CSS}</style></head><body>{''.join(sections)}</body></html>")
+            f"<style>{CSS}</style></head><body>{body}</body></html>")
     OUT_PATH.write_text(page, encoding="utf-8")
     log.info("report -> %s (%d tables in %s)", OUT_PATH, len(t), config.TABLES_DIR)
     return {"report": str(OUT_PATH), "tables": sorted(t)}

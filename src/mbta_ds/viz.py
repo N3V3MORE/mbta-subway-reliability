@@ -30,6 +30,7 @@ from . import (
     config,
     features,
     model_delay,
+    model_tail,
 )
 
 log = logging.getLogger(__name__)
@@ -530,6 +531,21 @@ def png_predicted_vs_actual() -> str:
     return _write_png(fig, "predicted_vs_actual")
 
 
+def png_calibration() -> str:
+    """Is a predicted "30% chance of 10+ minutes late" really 30%?"""
+    table = pd.DataFrame(model_tail.load_metrics()["calibration"])
+    fig, ax = plt.subplots(figsize=(5.5, 5))
+    ax.plot([0, 1], [0, 1], "--", color="grey", linewidth=1, label="perfectly calibrated")
+    for k, part in table.groupby("horizon_stops"):
+        ax.plot(part["predicted"], part["observed"], marker="o", label=f"{k} stop(s) ahead")
+    ax.set_xlabel("Predicted probability of 10+ minutes late")
+    ax.set_ylabel("Observed share 10+ minutes late")
+    ax.set_title("Early-warning calibration (test period)")
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+    return _write_png(fig, "calibration")
+
+
 def png_demand_profiles() -> str:
     path = config.PROCESSED_DIR / "demand_profiles.parquet"
     profiles = pd.read_parquet(path)
@@ -606,7 +622,7 @@ def run() -> dict:
         html.append(_write_html(figure, name))
 
     for builder in (png_ablation, png_importance, png_predicted_vs_actual,
-                    png_demand_profiles, png_delay_heatmap):
+                    png_demand_profiles, png_delay_heatmap, png_calibration):
         try:
             png.append(builder())
         except Exception as exc:  # noqa: BLE001

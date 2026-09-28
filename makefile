@@ -23,7 +23,7 @@ help:
 	@echo "  setup        install Python dependencies"
 	@echo "  data         download, clean, build features, validate (DAYS=$(DAYS))"
 	@echo "  live         poll the MBTA V3 API and record live snapshots"
-	@echo "  model        train and evaluate the delay models (Track A)"
+	@echo "  model        train and evaluate the delay and 10+ minute models (Track A)"
 	@echo "  model-full   as 'model', plus random forest and KNN"
 	@echo "  cluster      cluster stations by reliability and demand (Track B)"
 	@echo "  figures      render interactive and static figures"
@@ -59,10 +59,12 @@ live:
 model:
 	@echo "==> training and evaluating delay models"
 	$(PYTHON) -m mbta_ds.cli train
+	$(PYTHON) -m mbta_ds.cli tail
 
 model-full:
 	@echo "==> training with the costly model set"
 	$(PYTHON) -m mbta_ds.cli train --full
+	$(PYTHON) -m mbta_ds.cli tail
 
 cluster:
 	@echo "==> clustering stations"

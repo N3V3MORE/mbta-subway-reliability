@@ -166,6 +166,12 @@ def stage_figures(args: argparse.Namespace) -> dict:
     return viz.run()
 
 
+def stage_tail(args: argparse.Namespace) -> dict:
+    from . import model_tail
+
+    return model_tail.run(quick=args.quick)
+
+
 def stage_report(args: argparse.Namespace) -> dict:
     from . import report
 
@@ -216,6 +222,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="also fit the costly models (random forest, KNN)")
     p.set_defaults(func=stage_train)
 
+    p = sub.add_parser("tail", help="10+ minute early warning and prediction ranges")
+    p.add_argument("--quick", action="store_true", help="one horizon, smaller samples")
+    p.set_defaults(func=stage_tail)
+
     p = sub.add_parser("cluster", help="track B: cluster stations by reliability and demand")
     p.set_defaults(func=stage_cluster)
 
@@ -246,7 +256,7 @@ def main(argv: list[str] | None = None) -> int:
         args.end = None
         args.refresh = False
         for stage in (stage_collect, stage_clean, stage_features, stage_validate,
-                      stage_train, stage_cluster, stage_figures, stage_report):
+                      stage_train, stage_tail, stage_cluster, stage_figures, stage_report):
             logging.info("=== %s ===", stage.__name__.replace("stage_", ""))
             stage(args)
         return 0

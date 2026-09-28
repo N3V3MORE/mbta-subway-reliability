@@ -55,7 +55,7 @@ Targets:
   setup        install Python dependencies
   data         download, clean, build features, validate (Days=$Days)
   live         poll the MBTA V3 API and record live snapshots
-  model        train and evaluate the delay models (Track A)
+  model        train and evaluate the delay and 10+ minute models (Track A)
   model-full   as 'model', plus random forest and KNN
   cluster      cluster stations by reliability and demand (Track B)
   figures      render interactive and static figures
@@ -81,9 +81,11 @@ Targets:
     }
     'model' {
         Invoke-Step 'training and evaluating delay models' @('-m', 'mbta_ds.cli', 'train')
+        Invoke-Step 'early warning and prediction ranges' @('-m', 'mbta_ds.cli', 'tail')
     }
     'model-full' {
         Invoke-Step 'training with the costly model set' @('-m', 'mbta_ds.cli', 'train', '--full')
+        Invoke-Step 'early warning and prediction ranges' @('-m', 'mbta_ds.cli', 'tail')
     }
     'cluster' {
         Invoke-Step 'clustering stations' @('-m', 'mbta_ds.cli', 'cluster')

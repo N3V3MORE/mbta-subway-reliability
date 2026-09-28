@@ -1,4 +1,4 @@
-﻿"""Tests for feature extraction.
+"""Tests for feature extraction.
 
 The most important test in this file is the leakage guard: no target-derived
 column may appear in the feature matrix, and every lag feature must come from an

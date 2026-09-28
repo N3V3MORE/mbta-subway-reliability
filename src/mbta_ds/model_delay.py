@@ -594,6 +594,13 @@ def run_calendar_diagnostic(split: Split, *, quick: bool, cache: dict | None = N
 # ---------------------------------------------------------------------------
 # Error analysis and importance
 # ---------------------------------------------------------------------------
+def day_type(frame: pd.DataFrame) -> np.ndarray:
+    """Label each row's route-day "disrupted" or "normal" (see DISRUPTED_SHARE)."""
+    late_share = (frame["delay_seconds"] > 600).groupby(
+        [frame["route_id"].astype(str), frame["service_date"]]).transform("mean")
+    return np.where(late_share >= DISRUPTED_SHARE, "disrupted", "normal")
+
+
 def error_analysis(test: pd.DataFrame, predictions: np.ndarray) -> dict:
     """Break test error down by route, hour band and weather condition."""
     frame = test[["route_id", "scheduled_hour"]].copy()
@@ -607,9 +614,7 @@ def error_analysis(test: pd.DataFrame, predictions: np.ndarray) -> dict:
         ["snow", "precip"], "dry",
     )
     # A handful of bad days dominates the average, so they are reported apart.
-    late_share = (test["delay_seconds"] > 600).groupby(
-        [test["route_id"].astype(str), test["service_date"]]).transform("mean")
-    frame["day_type"] = np.where(late_share >= DISRUPTED_SHARE, "disrupted", "normal")
+    frame["day_type"] = day_type(test)
 
     def _agg(by: str) -> list[dict]:
         out = frame.groupby(by, observed=True)["abs_error"].agg(["mean", "median", "count"])

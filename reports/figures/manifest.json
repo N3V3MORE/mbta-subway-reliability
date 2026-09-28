@@ -18,7 +18,8 @@
     "feature_importance.png",
     "predicted_vs_actual.png",
     "demand_profiles.png",
-    "delay_heatmap.png"
+    "delay_heatmap.png",
+    "calibration.png"
   ],
   "skipped": {}
 }

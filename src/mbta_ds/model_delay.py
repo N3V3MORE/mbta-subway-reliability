@@ -539,7 +539,11 @@ ABLATION_ORDER = (
 
 def _probe(split: Split, numeric: list[str], categorical: list[str], *, quick: bool,
            cache: dict) -> dict:
-    """Test metrics of the fixed ablation probe (squared-error boosting).
+    """Test metrics of the fixed ablation probe (the headline change model, smaller).
+
+    Without the propagation group there is no previous delay to add back, so the
+    probe falls back to predicting the delay itself (:class:`PersistenceRegressor`
+    returns zero when its column is absent).
 
     The probe is held fixed so every feature set is judged by the same model, and
     its metrics are averaged over :data:`PROBE_SEEDS` (one seed in ``quick`` mode),
@@ -553,8 +557,9 @@ def _probe(split: Split, numeric: list[str], categorical: list[str], *, quick: b
         runs = pd.DataFrame([
             evaluate_regression(
                 split.test["delay_seconds"],
-                _fit(_boost(quick, max_iter=120 if quick else 250, max_leaf_nodes=31,
-                            random_state=seed),
+                _fit(ChangeRegressor(_boost(quick, max_iter=120 if quick else 250,
+                                            max_leaf_nodes=31, loss="absolute_error",
+                                            random_state=seed)),
                      split.train, numeric, categorical, "delay_seconds")
                 .predict(split.test[numeric + categorical]))
             for seed in (PROBE_SEEDS[:1] if quick else PROBE_SEEDS)

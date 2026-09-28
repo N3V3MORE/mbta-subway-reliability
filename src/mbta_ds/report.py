@@ -58,7 +58,7 @@ img{max-width:100%;border:1px solid #dde1ea;border-radius:6px;background:#fff}
 
 #: Columns whose values live in 0..1 and need three decimals to be told apart.
 THREE_DECIMALS = {"R²", "F1", "Precision", "Recall", "ROC-AUC", "PR-AUC", "Accuracy",
-                  "Coverage", "Share not >5 min late", "value"}
+                  "Coverage", "Coverage before calibration", "Share not >5 min late", "value"}
 
 
 def _cell(value, decimals: int) -> str:
@@ -155,6 +155,8 @@ def tables() -> dict[str, pd.DataFrame]:
         "recall_at_50pct_precision": "Recall"})
     out["ranges"] = pd.DataFrame(tail["ranges"]).rename(columns={
         "horizon_stops": "Stops ahead", "day_type": "Route-days", "coverage": "Coverage",
+        "coverage_uncorrected": "Coverage before calibration",
+        "conformal_margin_seconds": "Calibration widening (s)",
         "median_width_seconds": "Median band width (s)",
         "median_abs_error_seconds": "Median error (s)", "pinball_q90": "Pinball loss, 90th pct"})
     return out

@@ -56,3 +56,20 @@ def test_day_type_flags_route_days_with_many_big_delays():
         "delay_seconds": [700, 0, 0, 0, 0] + [0] * 5,   # Red: 20% over 10 min
     })
     assert model_delay.day_type(frame).tolist() == ["disrupted"] * 5 + ["normal"] * 5
+
+
+class TestConformalMargin:
+    def test_widens_a_too_narrow_band_to_the_requested_coverage(self):
+        rng = np.random.default_rng(0)
+        y = rng.normal(0, 1, 20_000)
+        # A band of +-0.5 covers ~38%; calibration must widen it to ~80%.
+        margin = model_tail.conformal_margin(y[:10_000], np.full(10_000, -0.5),
+                                             np.full(10_000, 0.5), 0.8)
+        held_out = y[10_000:]
+        coverage = np.mean((held_out >= -0.5 - margin) & (held_out <= 0.5 + margin))
+        assert margin > 0
+        assert abs(coverage - 0.8) < 0.02
+
+    def test_narrows_a_too_wide_band(self):
+        y = np.random.default_rng(1).normal(0, 1, 10_000)
+        assert model_tail.conformal_margin(y, np.full(10_000, -5.0), np.full(10_000, 5.0), 0.8) < 0

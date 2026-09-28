@@ -37,6 +37,8 @@ QUANTILES = (0.1, 0.5, 0.9)
 #: Recall is reported at this precision: of the trains flagged, half really are 10+ late.
 TARGET_PRECISION = 0.5
 CALIBRATION_EDGES = (0.0, 0.02, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0)
+#: Share of the latest training days held back to calibrate the ranges.
+CONFORMAL_FRACTION = 0.2
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +73,20 @@ def band_metrics(y: np.ndarray, low: np.ndarray, high: np.ndarray) -> dict:
             "median_width_seconds": float(np.median(high - low))}
 
 
+def conformal_margin(y: np.ndarray, low: np.ndarray, high: np.ndarray,
+                     coverage: float) -> float:
+    """Split-conformal widening for a quantile band (CQR, Romano et al. 2019).
+
+    Each held-out row scores how far the truth fell outside its band (negative
+    when inside). Widening every band by the right quantile of those scores gives
+    the requested coverage on data like the held-out rows, whatever the quantile
+    models got wrong.
+    """
+    scores = np.maximum(low - y, y - high)
+    level = min(1.0, np.ceil((len(scores) + 1) * coverage) / len(scores))
+    return float(np.quantile(scores, level))
+
+
 def pinball_loss(y: np.ndarray, predicted: np.ndarray, q: float) -> float:
     """The loss quantile regression minimises; lower is better."""
     diff = y - predicted
@@ -94,13 +110,17 @@ def evaluate_horizon(k: int, *, quick: bool) -> dict:
     y = test["big_delay"].to_numpy()
     onset = (test["prev_delay_1"] < ONSET_BELOW_SECONDS).to_numpy()
 
-    classifier = md._fit(
-        HistGradientBoostingClassifier(categorical_features="from_dtype",
-                                       max_iter=150 if quick else 300, learning_rate=0.08,
-                                       early_stopping=True, random_state=md.SEED),
-        train, numeric, categorical, "big_delay")
+    # Averaged over three seeds: with ~1,250 onsets, a single seed's onset PR-AUC
+    # ranged from 0.11 to 0.22 on identical data, which is noise, not signal.
+    seeds = md.PROBE_SEEDS[:1] if quick else md.PROBE_SEEDS
+    proba = np.mean([
+        md._fit(HistGradientBoostingClassifier(categorical_features="from_dtype",
+                                               max_iter=150 if quick else 300, learning_rate=0.08,
+                                               early_stopping=True, random_state=seed),
+                train, numeric, categorical, "big_delay").predict_proba(X)[:, 1]
+        for seed in seeds], axis=0)
     scores = {
-        "model": classifier.predict_proba(X)[:, 1],
+        "model": proba,
         # Baselines rank trains by one signal each; higher means "more likely late".
         "baseline: how late the train is now": test["prev_delay_1"].to_numpy(dtype=float),
         "baseline: how late the line is now": test["line_late_share_15m"].fillna(0).to_numpy(),
@@ -113,12 +133,26 @@ def evaluate_horizon(k: int, *, quick: bool) -> dict:
     delay = test["delay_seconds"].to_numpy()
     # Quantiles of the change since the last stop, shifted by the known delay
     # there, are quantiles of the delay itself -- without the trees' range cap.
-    q = {level: md._fit(md.ChangeRegressor(md._boost(quick, loss="quantile", quantile=level)),
-                        train, numeric, categorical, "delay_seconds").predict(X)
-         for level in QUANTILES}
+    # They are fitted on the earlier training days; the latest are held back to
+    # calibrate the band's width (split conformal).
+    dates = np.sort(train["service_date"].unique())
+    calibration_start = dates[int(len(dates) * (1 - CONFORMAL_FRACTION))]
+    fit_rows = train[train["service_date"] < calibration_start]
+    calibration = train[train["service_date"] >= calibration_start]
+    models = {level: md._fit(md.ChangeRegressor(md._boost(quick, loss="quantile", quantile=level)),
+                             fit_rows, numeric, categorical, "delay_seconds")
+              for level in QUANTILES}
+    q = {level: m.predict(X) for level, m in models.items()}
+    cal_cols = calibration[numeric + categorical]
+    margin = conformal_margin(calibration["delay_seconds"].to_numpy(),
+                              models[0.1].predict(cal_cols), models[0.9].predict(cal_cols),
+                              QUANTILES[-1] - QUANTILES[0])
+    low, high = q[0.1] - margin, q[0.9] + margin
     days = md.day_type(test)
     ranges = [{"horizon_stops": k, "day_type": label,
-               **band_metrics(delay[m], q[0.1][m], q[0.9][m]),
+               **band_metrics(delay[m], low[m], high[m]),
+               "coverage_uncorrected": band_metrics(delay[m], q[0.1][m], q[0.9][m])["coverage"],
+               "conformal_margin_seconds": margin,
                "median_abs_error_seconds": float(np.median(np.abs(delay[m] - q[0.5][m]))),
                "pinball_q90": pinball_loss(delay[m], q[0.9][m], 0.9)}
               for label, m in (("all", np.ones(len(test), bool)), ("normal", days == "normal"),

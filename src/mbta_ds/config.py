@@ -116,6 +116,11 @@ SERVICE_TZ = "America/New_York"
 #: post-midnight trips exceed 86400 seconds (see ``clean.compute_delay``).
 SECONDS_PER_DAY = 86_400
 
+#: Last service date of the published analysis. Pinned so that a fresh run on
+#: another machine analyses the same 90 days even after the MBTA publishes newer
+#: ridership; pass ``--end latest`` (or ``make END=latest``) to follow the sources.
+DEFAULT_END = "2026-06-30"
+
 #: A train is "late" for classification purposes beyond this threshold.
 LATE_THRESHOLD_SECONDS = 300
 

@@ -114,7 +114,8 @@ def reliability_matrix(frame: pd.DataFrame | None = None) -> pd.DataFrame:
     return matrix
 
 
-def demand_matrix(station_names: pd.Series | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+def demand_matrix(station_names: pd.Series | None = None,
+                  window: tuple | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Build the station x 48-half-hour entry-shape matrix.
 
     ``station_names`` maps a stop id (``place-state``) to the name the delay data
@@ -132,6 +133,11 @@ def demand_matrix(station_names: pd.Series | None = None) -> tuple[pd.DataFrame,
     near-zero daily total turns measurement noise into an extreme-looking profile.
     """
     raw = collect_ridership.load_raw().copy()
+    # The cache also holds look-back days before the window (for the lagged demand
+    # features); the station typology describes the analysis ``window`` only.
+    if window is not None:
+        dates = pd.to_datetime(raw["service_date"]).dt.date
+        raw = raw[(dates >= window[0]) & (dates <= window[1])]
     if station_names is not None and "stop_id" in raw.columns:
         raw["station_name"] = raw["stop_id"].map(station_names).fillna(raw["station_name"])
     raw["period_index"] = (
@@ -484,7 +490,7 @@ def run() -> dict:
     demand: pd.DataFrame | None
     coverage = pd.DataFrame()
     try:
-        demand, coverage = demand_matrix(station_names)
+        demand, coverage = demand_matrix(station_names, config.load_window())
     except FileNotFoundError as exc:
         log.warning("skipping demand clustering: %s", exc)
         demand = None

@@ -15,8 +15,11 @@ export PYTHONPATH := src
 
 #: Service days of history. `make DAYS=180 data` fetches a longer window.
 DAYS ?= 90
-#: Optional last service date, e.g. `make END=2026-02-28 RUN=winter all`.
-END ?=
+#: Last service date. Pinned to the published analysis so every machine studies
+#: the same 90 days; `make END=latest data` follows the newest data instead.
+END ?= 2026-06-30
+#: `make NO_RIDERSHIP=1 ...` analyses delays without the ridership source.
+NO_RIDERSHIP ?=
 #: Optional run name: results go to data/runs/$(RUN)/ and reports/$(RUN)/.
 ifdef RUN
 export MBTA_RUN := $(RUN)
@@ -26,8 +29,8 @@ endif
 
 help:
 	@echo "Targets:"
-	@echo "  setup        install Python dependencies"
-	@echo "  data         download, clean, build features, validate (DAYS=$(DAYS))"
+	@echo "  setup        check Python 3.11-3.13 and install the pinned dependencies"
+	@echo "  data         download, clean, build features, validate (DAYS=$(DAYS), END=$(END))"
 	@echo "  live         poll the MBTA V3 API and record live snapshots"
 	@echo "  model        train and evaluate the delay and 10+ minute models (Track A)"
 	@echo "  model-full   as 'model', plus random forest and KNN"
@@ -44,13 +47,14 @@ all: setup data model cluster figures report
 	@echo "Pipeline complete. Open reports/report.html."
 
 setup:
-	@echo "==> installing dependencies"
-	$(PYTHON) -m pip install --upgrade pip
-	$(PYTHON) -m pip install -r requirements.txt
+	@echo "==> checking the Python version (3.11-3.13; the pinned wheels stop at 3.13)"
+	$(PYTHON) -c "import sys; v=sys.version_info[:2]; sys.exit(0 if (3,11) <= v <= (3,13) else 'Python 3.11-3.13 required, found %d.%d' % v)"
+	@echo "==> installing the exact dependency versions the results were produced with"
+	$(PYTHON) -m pip install -r requirements-lock.txt
 
 data:
 	@echo "==> collecting $(DAYS) days of MBTA data"
-	$(PYTHON) -m mbta_ds.cli collect --days $(DAYS) $(if $(END),--end $(END))
+	$(PYTHON) -m mbta_ds.cli collect --days $(DAYS) --end $(END) $(if $(NO_RIDERSHIP),--no-ridership)
 	@echo "==> cleaning"
 	$(PYTHON) -m mbta_ds.cli clean --refresh
 	@echo "==> extracting features"

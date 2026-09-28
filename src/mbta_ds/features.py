@@ -11,9 +11,10 @@ stop *k*. Concretely:
 * Target encoding is deliberately **not** done here. Categorical identifiers are
   handed to the model as raw categories so any encoding happens inside a
   train-only pipeline and cannot leak test information.
-* Weather is joined on the *scheduled* hour. This is a nowcast, not a forecast,
-  and is flagged as a limitation in the README; the trainer runs a no-weather
-  ablation to quantify how much it actually buys.
+* Weather and alerts are joined on the hour of the *prediction moment*
+  (``known_at``), never on the target's scheduled hour, which may lie after it.
+  Weather is still observed (reanalysis) weather, a nowcast rather than a
+  forecast; the README flags it and the ablation measures what it buys.
 
 Feature groups are declared explicitly (:data:`FEATURE_GROUPS`) so the trainer can
 run ablations without re-deriving anything.
@@ -264,11 +265,30 @@ def attach_network(frame: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def _prediction_hour(frame: pd.DataFrame) -> pd.Series:
+    """Naive local hour containing the prediction moment.
+
+    ``known_at`` (see :func:`add_propagation_features`) is when the prediction is
+    made. Frames without it (small test inputs) fall back to the scheduled time.
+    Flooring keeps every hourly value at or before the prediction moment.
+    """
+    moment = frame["scheduled_epoch"].astype("float64")
+    if "known_at" in frame:
+        moment = frame["known_at"].astype("float64").fillna(moment)
+    local = pd.to_datetime(moment, unit="s", utc=True).dt.tz_convert(config.SERVICE_TZ)
+    return local.dt.tz_localize(None).dt.floor("h").astype("datetime64[ns]")
+
+
 # ---------------------------------------------------------------------------
 # Weather
 # ---------------------------------------------------------------------------
 def attach_weather(frame: pd.DataFrame) -> pd.DataFrame:
-    """Join hourly weather on the scheduled local hour."""
+    """Join hourly weather for the hour the prediction is made in.
+
+    Open-Meteo's hourly precipitation and snowfall at ``HH:00`` are totals for the
+    preceding hour, and temperature is instantaneous, so the value stamped with
+    the floored prediction hour is already in the past at prediction time.
+    """
     out = frame.copy()
     try:
         weather = collect_weather.load_weather()
@@ -278,10 +298,7 @@ def attach_weather(frame: pd.DataFrame) -> pd.DataFrame:
             out[column] = np.nan
         return out
 
-    scheduled_local = pd.to_datetime(
-        out["scheduled_epoch"], unit="s", utc=True
-    ).dt.tz_convert(config.SERVICE_TZ).dt.tz_localize(None)
-    out["_sched_hour"] = scheduled_local.dt.floor("h")
+    out["_sched_hour"] = _prediction_hour(out)
 
     # Timestamps are naive local time, so the autumn DST fall-back repeats 01:00.
     # A duplicated key would silently duplicate every train row in that hour.
@@ -305,7 +322,9 @@ def attach_demand(frame: pd.DataFrame) -> pd.DataFrame:
 
     Same-day entries are not usable (they are only known once the day is over),
     so this uses the mean of the previous seven days, plus the difference between
-    that mean and the mean of the seven days before it as a trend term.
+    that mean and the mean of the seven days before it as a trend term. The
+    collector fetches :data:`collect_ridership.LOOKBACK_DAYS` days before the
+    window so the first days of the window have a full history too.
     """
     out = frame.copy()
     try:
@@ -372,11 +391,13 @@ def attach_alerts(
 ) -> pd.DataFrame:
     """Join the service alerts already in force when the scheduled hour begins.
 
-    **Causality.** These alerts are *reactive*, not published in advance: in the
-    2026 window the median gap between an alert's creation and the start of its
-    active period is zero. An alert is therefore only counted from the first hour
-    boundary at or after its start. Flooring the start instead would let an alert
-    raised at 08:50 inform an 08:10 arrival -- information from the future.
+    **Causality.** Many alerts are *reactive*: in the 2026 window the median gap
+    between an alert's creation and the start of its active period is zero, and
+    9.6% of active periods start *before* the alert was created (backdated). An
+    alert is therefore only counted from the first hour boundary at or after the
+    later of its start and its creation, and rows are matched on the hour of the
+    prediction moment (``known_at``), not the target's scheduled hour -- which,
+    several stops ahead, can lie after alerts raised since the prediction.
 
     **Relevance.** Elevator and escalator outages (:data:`NON_SERVICE_ALERT_EFFECTS`)
     are ~93% of subway alerts and say nothing about train running, so they are
@@ -397,7 +418,8 @@ def attach_alerts(
     if alerts is None:
         try:
             alerts = collect_lamp.load_alerts(
-                columns=[route_col, start_col, end_col, "severity", "id", "effect"]
+                columns=[route_col, start_col, end_col, "severity", "id", "effect",
+                         "created_datetime"]
             )
         except FileNotFoundError:
             return _without_alert_features(out, "no alerts archive")
@@ -425,6 +447,11 @@ def attach_alerts(
         alert_end=pd.to_datetime(work["alert_end"], errors="coerce"),
     )
     work = work[work["alert_start"].notna()]
+    if "created_datetime" in work.columns:
+        # A backdated alert is only known from when it was created.
+        created = pd.to_datetime(work["created_datetime"], errors="coerce")
+        work["alert_start"] = work["alert_start"].where(
+            created.isna() | (created <= work["alert_start"]), created)
 
     dates = pd.to_datetime(out["service_date"].astype("int64").astype(str), format="%Y%m%d")
     window_start = dates.min()
@@ -468,10 +495,7 @@ def attach_alerts(
 
     # The archive is microsecond-resolution; align both keys before merging.
     grid["hour"] = grid["hour"].astype("datetime64[ns]")
-    scheduled_local = pd.to_datetime(
-        out["scheduled_epoch"], unit="s", utc=True
-    ).dt.tz_convert(config.SERVICE_TZ).dt.tz_localize(None)
-    out["hour"] = scheduled_local.dt.floor("h").astype("datetime64[ns]")
+    out["hour"] = _prediction_hour(out)
     out["route_id"] = out["route_id"].astype(str)
 
     merged = out.merge(grid, on=["route_id", "hour"], how="left")

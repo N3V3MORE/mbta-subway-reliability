@@ -64,3 +64,39 @@ class TestRidershipChecks:
             "period_minute": [0, 0], "gated_entries": [10.0, -1.0],
         })
         assert "negative gated entries" in _failed(validate.check_ridership(raw, n_days=1))
+
+
+class TestWindowChecks:
+    def test_day_lost_at_the_window_edge_fails(self, clean_frame):
+        from datetime import timedelta
+
+        day = clean_frame["service_date_parsed"].iloc[0]
+        window = (day, day + timedelta(days=1))          # the table only has `day`
+        failed = _failed(validate.check_clean(clean_frame, window=window))
+        assert "service dates lost by the pipeline" in failed
+
+    def test_table_from_another_window_fails(self, clean_frame):
+        from datetime import timedelta
+
+        day = clean_frame["service_date_parsed"].iloc[0]
+        window = (day + timedelta(days=30), day + timedelta(days=31))
+        assert "service dates outside the analysis window" in _failed(
+            validate.check_clean(clean_frame, window=window))
+
+    def test_ridership_must_cover_the_window_dates_not_just_their_count(self):
+        from datetime import date
+
+        raw = pd.DataFrame({
+            "service_date": [date(2026, 1, 1)], "stop_id": ["a"], "route_or_line": ["Red"],
+            "time_period": ["08:00:00"], "period_minute": [0], "gated_entries": [10.0],
+        })
+        window = (date(2026, 6, 1), date(2026, 6, 1))
+        assert "window dates missing from ridership" in _failed(
+            validate.check_ridership(raw, window=window))
+
+    def test_weather_must_reach_the_morning_after_the_window(self):
+        from datetime import date
+
+        window = (date(2026, 6, 1), date(2026, 6, 1))
+        assert _failed(validate.check_weather(_weather(48), window)) == set()
+        assert "window hours without weather" in _failed(validate.check_weather(_weather(24), window))

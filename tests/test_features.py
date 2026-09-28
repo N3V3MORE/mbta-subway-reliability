@@ -186,6 +186,23 @@ class TestAlertFeatures:
         out = features.attach_alerts(arrivals, alerts=long_ago, max_span_days=7)
         assert out["route_alerts_active"].tolist() == [0]
 
+    def test_backdated_alert_counts_from_its_creation(self):
+        """An alert created at 09:40 but stamped as starting 08:00 was unknown at 09:10."""
+        arrivals = _arrivals_at("2026-06-26 09:10", "2026-06-26 10:10")
+        alert = _alert("2026-06-26 08:00", "2026-06-26 12:00")
+        alert["created_datetime"] = pd.Timestamp("2026-06-26 09:40")
+        out = features.attach_alerts(arrivals, alerts=pd.DataFrame([alert]))
+        assert out["route_alerts_active"].tolist() == [0, 1]
+
+    def test_matched_on_prediction_moment_not_scheduled_hour(self):
+        """Predicted at 08:40 for a 09:10 arrival: a 09:00 alert did not exist yet."""
+        arrivals = _arrivals_at("2026-06-26 09:10")
+        at = pd.Timestamp("2026-06-26 08:40", tz=config.SERVICE_TZ).value // 10**9
+        arrivals["known_at"] = float(at)
+        alerts = pd.DataFrame([_alert("2026-06-26 09:00", "2026-06-26 12:00")])
+        out = features.attach_alerts(arrivals, alerts=alerts)
+        assert out["route_alerts_active"].tolist() == [0]
+
     def test_row_count_is_preserved(self):
         arrivals = _arrivals_at("2026-06-26 08:10", "2026-06-26 09:10", "2026-06-26 09:40")
         alerts = pd.DataFrame([

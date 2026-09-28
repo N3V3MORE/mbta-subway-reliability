@@ -20,8 +20,11 @@ Key findings that shape the cleaning
 3. ``parent_station`` holds a *stop id* (e.g. ``place-alfcl``), not a name, despite
    the data dictionary's wording. Names come from ``LAMP_static_stops``.
 4. The service day runs 03:00 -> 02:59, so post-midnight trips carry GTFS times
-   above 86400 s. Anchoring the schedule at local midnight and adding the raw
-   GTFS time handles this correctly without special-casing.
+   above 86400 s. GTFS measures times from "noon minus 12 hours" of the service
+   date, which is local midnight on every day except the two DST transitions,
+   where it is 23:00 or 01:00. Anchoring there and adding the raw GTFS time
+   handles post-midnight trips and DST without special-casing. (Anchoring at
+   midnight instead put every delay on 8 March 2026 off by -3,600 s.)
 5. ``stop_sequence`` is not a reliable trip order. On 3,830 trips (mostly Green-E
    into Heath Street) the *final* stop is labelled ``stop_sequence == 1``, so
    ordering by it puts the end of the trip first and hands the lag features the
@@ -115,12 +118,11 @@ def _service_date_table(service_dates: pd.Series) -> tuple[np.ndarray, pd.DataFr
     if (codes < 0).any():
         raise ValueError("service_date contains missing values")
     day = pd.to_datetime(pd.Series(uniques).astype("int64").astype(str), format="%Y%m%d")
-    localised = day.dt.tz_localize(
-        config.SERVICE_TZ, nonexistent="shift_forward", ambiguous="NaT"
-    )
+    # GTFS anchor: local noon minus 12 h. Noon is never ambiguous or skipped.
+    noon = (day + pd.Timedelta(hours=12)).dt.tz_localize(config.SERVICE_TZ)
     epoch = pd.Timestamp("1970-01-01", tz="UTC")
     table = pd.DataFrame({
-        "midnight_epoch": (localised - epoch) // pd.Timedelta(seconds=1),
+        "midnight_epoch": (noon - epoch) // pd.Timedelta(seconds=1) - 12 * 3600,
         "day_of_week": day.dt.dayofweek.astype("int8"),
         "date": day.dt.date,
     })
@@ -128,11 +130,11 @@ def _service_date_table(service_dates: pd.Series) -> tuple[np.ndarray, pd.DataFr
 
 
 def service_midnight_epoch(service_dates: pd.Series) -> pd.Series:
-    """Convert ``YYYYMMDD`` ints to local-midnight epoch seconds.
+    """Convert ``YYYYMMDD`` ints to the GTFS schedule anchor in epoch seconds.
 
-    GTFS times are measured from local midnight of the service date, so this is
-    the anchor every scheduled time must be added to. ``America/New_York``
-    handles the DST transition implicitly.
+    GTFS times are measured from "noon minus 12 hours" of the service date: local
+    midnight on ordinary days, one hour earlier (spring forward) or later (fall
+    back) on DST transition days. Every scheduled time is added to this anchor.
     """
     codes, table = _service_date_table(service_dates)
     return pd.Series(
@@ -260,7 +262,8 @@ def build(
     # --- rule 3: de-duplicate the (service date, trip, stop) key ---------
     before = len(frame)
     frame = (
-        frame.sort_values("stop_timestamp")
+        # Stable sort: ties keep their input order on every CPU and numpy build.
+        frame.sort_values("stop_timestamp", kind="stable")
         .drop_duplicates(subset=["service_date", "trip_id", "stop_id"], keep="first")
     )
     ledger.record("drop duplicate (service_date, trip_id, stop_id)", before, len(frame))

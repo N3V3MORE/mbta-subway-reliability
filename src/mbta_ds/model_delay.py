@@ -91,6 +91,12 @@ TREND_FEATURE = "days_since_window_start"
 #: MAE by up to 2.5 s, more than most feature groups are worth.
 PROBE_SEEDS = (SEED, 1, 2)
 
+#: The models reported and analysed as the result, fixed in advance. Picking
+#: whichever candidate scores best on the test period would make that score an
+#: optimistic, selected-on-test estimate; every candidate is still reported.
+HEADLINE_REGRESSOR = "hist_gradient_boosting_change"
+HEADLINE_CLASSIFIER = "hist_gradient_boosting"
+
 #: Consume pandas ``category`` columns and NaN natively; no encoding or imputing.
 NATIVE_MODELS = (HistGradientBoostingRegressor, HistGradientBoostingClassifier)
 #: Distance- and gradient-based models, which need standardised inputs.
@@ -795,10 +801,8 @@ def run(*, quick: bool = False, full: bool = False) -> dict:
         trend_diagnostic = run_calendar_diagnostic(split, quick=quick, cache=probe_cache)
         stage.step("time-trend diagnostic")
 
-        # The best *learned* model is reported and analysed, even if a baseline
-        # happened to win outright.
-        learned = reg_comparison[~reg_comparison["model"].str.startswith("baseline_")]
-        chosen_name = learned.iloc[0]["model"]
+        # The headline model is fixed in advance, not chosen by test score.
+        chosen_name = HEADLINE_REGRESSOR
         chosen = reg_fitted[chosen_name]
         test_predictions = chosen.predict(X_test)
         analysis = error_analysis(split.test, test_predictions)
@@ -835,7 +839,8 @@ def run(*, quick: bool = False, full: bool = False) -> dict:
         **{f"proba_{name}": p for name, p in clf_probabilities.items()}
     ).to_parquet(CLF_PREDICTIONS_PATH, index=False)
 
-    chosen_metrics = learned.iloc[0].to_dict()
+    chosen_metrics = reg_comparison.set_index("model").loc[chosen_name].to_dict()
+    clf_metrics = clf_comparison.set_index("model").loc[HEADLINE_CLASSIFIER].to_dict()
     metrics = {
         "split": {
             "cutoff_service_date": str(split.cutoff),
@@ -851,8 +856,8 @@ def run(*, quick: bool = False, full: bool = False) -> dict:
         "classification": clf_comparison.to_dict("records"),
         "best_regression_model": chosen_name,
         "best_regression_metrics": chosen_metrics,
-        "best_classification_model": clf_comparison.iloc[0]["model"],
-        "best_classification_metrics": clf_comparison.iloc[0].to_dict(),
+        "best_classification_model": HEADLINE_CLASSIFIER,
+        "best_classification_metrics": clf_metrics,
         "ablation": ablation.to_dict("records"),
         "trend_diagnostic": trend_diagnostic,
         "error_analysis": analysis,

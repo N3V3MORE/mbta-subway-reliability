@@ -33,17 +33,25 @@ def _check(source: str, name: str, value: float, op: str, limit: float, *,
             "limit": limit, "hard": hard, "ok": bool(_OPS[op](value, limit))}
 
 
-def check_clean(frame: pd.DataFrame, empty_at_source: frozenset = frozenset()) -> list[dict]:
+def _window_days(window) -> set:
+    return set(pd.date_range(window[0], window[1]).date)
+
+
+def check_clean(frame: pd.DataFrame, empty_at_source: frozenset = frozenset(),
+                window: tuple | None = None) -> list[dict]:
     """Physical consistency of the tidy trip-stop table.
 
     ``empty_at_source`` lists service dates whose archive file has no rows (the
     MBTA published nothing for 4, 10 and 12 December 2025). Those are reported;
-    only a date the source *had* and the pipeline lost is a failure.
+    only a date the source *had* and the pipeline lost is a failure. With
+    ``window`` every date of the analysis window must be present (so a day lost at
+    either end is caught) and no date outside it (so a stale table from another
+    window cannot pass).
     """
     trip = frame.sort_values(clean.TRIP_ORDER).groupby(clean.TRIP_KEY, sort=False)
     present = set(frame["service_date_parsed"])
-    span = pd.date_range(min(present), max(present)).date
-    missing = {d for d in span if d not in present}
+    span = _window_days(window) if window else set(pd.date_range(min(present), max(present)).date)
+    missing = span - present
     arrivals = frame[clean.is_arrival(frame)]
 
     per_day = frame.groupby(["service_date_parsed", "route_id"]).size().unstack(fill_value=0)
@@ -58,6 +66,7 @@ def check_clean(frame: pd.DataFrame, empty_at_source: frozenset = frozenset()) -
         _check(c, "service dates lost by the pipeline", len(missing - empty_at_source), "==", 0),
         _check(c, "service dates empty in the source archive", len(missing & empty_at_source),
                ">=", 0, hard=False),
+        _check(c, "service dates outside the analysis window", len(present - span), "==", 0),
         _check(c, "scheduled time runs backwards within a trip",
                (trip["scheduled_arrival_time"].diff() < 0).sum(), "==", 0),
         _check(c, "share of arrivals timestamped before the previous stop (flagged)",
@@ -86,23 +95,37 @@ def check_clean(frame: pd.DataFrame, empty_at_source: frozenset = frozenset()) -
     ]
 
 
-def check_ridership(raw: pd.DataFrame, n_days: int) -> list[dict]:
+def check_ridership(raw: pd.DataFrame, n_days: int | None = None,
+                    window: tuple | None = None) -> list[dict]:
+    """``window``: every date of it must be present (the file may also hold the
+    look-back days before it). ``n_days`` is the older count-only form."""
     r = "ridership"
-    return [
+    dates = set(pd.to_datetime(raw["service_date"]).dt.date)
+    coverage = ([_check(r, "window dates missing from ridership",
+                        len(_window_days(window) - dates), "==", 0)] if window
+                else [_check(r, "service dates covered", len(dates), "==", n_days)])
+    return coverage + [
         _check(r, "negative gated entries", (raw["gated_entries"] < 0).sum(), "==", 0),
         _check(r, "duplicate (date, stop, line, period)",
                raw.duplicated(["service_date", "stop_id", "route_or_line", "time_period"]).sum(),
                "==", 0),
-        _check(r, "service dates covered", raw["service_date"].nunique(), "==", n_days),
         _check(r, "half-hour periods other than :00 / :30",
                (~raw["period_minute"].isin([0, 30])).sum(), "==", 0),
     ]
 
 
-def check_weather(weather: pd.DataFrame) -> list[dict]:
+def check_weather(weather: pd.DataFrame, window: tuple | None = None) -> list[dict]:
+    """``window``: the series must cover it hour by hour, through the morning after
+    its last date (the last service day runs past midnight)."""
     w = "weather"
     steps = weather["timestamp"].diff().dropna()
-    return [
+    coverage = []
+    if window:
+        needed = pd.date_range(pd.Timestamp(window[0]),
+                               pd.Timestamp(window[1]) + pd.Timedelta(hours=47), freq="h")
+        coverage = [_check(w, "window hours without weather",
+                           len(needed.difference(pd.DatetimeIndex(weather["timestamp"]))), "==", 0)]
+    return coverage + [
         _check(w, "gaps or repeats in the hourly series",
                (steps != pd.Timedelta(hours=1)).sum(), "==", 0),
         _check(w, "missing values", weather.isna().sum().sum(), "==", 0),
@@ -115,10 +138,13 @@ def check_weather(weather: pd.DataFrame) -> list[dict]:
     ]
 
 
-def check_features(frame: pd.DataFrame) -> list[dict]:
+def check_features(frame: pd.DataFrame, window: tuple | None = None) -> list[dict]:
     f = "features"
     declared = features.all_feature_columns()
-    return [
+    outside = ([_check(f, "service dates outside the analysis window",
+                       len(set(frame["service_date_parsed"]) - _window_days(window)), "==", 0)]
+               if window else [])
+    return outside + [
         _check(f, "target columns among the features",
                len(set(declared) & set(features.TARGET_COLUMNS)), "==", 0),
         _check(f, "declared features absent from the table",
@@ -132,24 +158,27 @@ def check_features(frame: pd.DataFrame) -> list[dict]:
 
 
 def empty_source_dates(days) -> frozenset:
-    """Service dates whose archive file is missing or has no rows (metadata only)."""
-    def rows(day) -> int:
+    """Service dates whose archive file was downloaded and has no rows.
+
+    A *missing* file is a failed or skipped download, not an empty source day, so
+    it is not listed here and surfaces as a date lost by the pipeline.
+    """
+    def empty(day) -> bool:
         path = config.LAMP_RAW_DIR / f"{day}.parquet"
-        return pq.ParquetFile(path).metadata.num_rows if path.exists() else 0
-    return frozenset(day for day in days if rows(day) == 0)
+        return path.exists() and pq.ParquetFile(path).metadata.num_rows == 0
+    return frozenset(day for day in days if empty(day))
 
 
 def run() -> dict:
     """Run every check, persist the report, and summarise the outcome."""
     clean_frame = clean.load()
-    start, end = config.load_window() or (min(clean_frame["service_date_parsed"]),
-                                          max(clean_frame["service_date_parsed"]))
-    window = pd.date_range(start, end).date
-    n_days = len(window)
-    results = (check_clean(clean_frame, empty_source_dates(window))
-               + check_features(features.load()))
-    for loader, checker in ((collect_ridership.load_raw, lambda d: check_ridership(d, n_days)),
-                            (collect_weather.load_weather, check_weather)):
+    window = config.load_window()
+    if window is None:
+        raise SystemExit(f"{config.WINDOW_PATH} missing; run the `collect` stage first")
+    results = (check_clean(clean_frame, empty_source_dates(pd.date_range(*window).date), window)
+               + check_features(features.load(), window))
+    for loader, checker in ((collect_ridership.load_raw, lambda d: check_ridership(d, window=window)),
+                            (collect_weather.load_weather, lambda d: check_weather(d, window))):
         try:
             results += checker(loader())
         except FileNotFoundError as exc:

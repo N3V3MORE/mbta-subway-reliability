@@ -24,7 +24,14 @@ log = logging.getLogger(__name__)
 API = "https://dashboard-api.labs.transitmatters.org/api/traveltimes/{date}"
 OUT_PATH = config.PROCESSED_DIR / "crosscheck.csv"
 ROUTES = ("Red", "Orange", "Blue")
-DATES = ("2026-06-10", "2026-06-17", "2026-06-24")
+#: Wednesdays compared: the last three of the analysis window (for the published
+#: window, 10, 17 and 24 June 2026, all in the test period).
+N_DATES = 3
+
+
+def sample_dates(frame: pd.DataFrame) -> list[str]:
+    days = pd.to_datetime(pd.Series(frame["service_date_parsed"].unique())).sort_values()
+    return [d.strftime("%Y-%m-%d") for d in days[days.dt.dayofweek == 2].iloc[-N_DATES:]]
 STOPS_APART = 8
 MATCH_TOLERANCE_SECONDS = 60
 
@@ -57,7 +64,7 @@ def run() -> dict:
     rows = []
     for route in ROUTES:
         origin, dest, ours = our_trips(frame, route)
-        for day in DATES:
+        for day in sample_dates(frame):
             theirs = pd.DataFrame(get_json(API.format(date=day), session,
                                            params={"from_stop": origin, "to_stop": dest}))
             if theirs.empty:

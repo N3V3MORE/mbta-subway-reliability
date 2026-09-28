@@ -21,8 +21,11 @@ param(
 
     [int]$Days = 90,
 
-    # Optional last service date, e.g. -End 2026-02-28.
-    [string]$End = '',
+    # Last service date; pinned to the published analysis. 'latest' follows the sources.
+    [string]$End = '2026-06-30',
+
+    # Analyse delays without the ridership source.
+    [switch]$NoRidership,
 
     # Optional run name: results go to data\runs\<Run>\ and reports\<Run>\.
     [string]$Run = ''
@@ -74,11 +77,11 @@ Targets:
 "@
     }
     'setup' {
-        Invoke-Step 'installing dependencies' @('-m', 'pip', 'install', '--upgrade', 'pip')
-        Invoke-Step 'installing requirements' @('-m', 'pip', 'install', '-r', 'requirements.txt')
+        Invoke-Step 'checking the Python version (3.11-3.13)' @('-c', "import sys; v=sys.version_info[:2]; sys.exit(0 if (3,11) <= v <= (3,13) else 'Python 3.11-3.13 required, found %d.%d' % v)")
+        Invoke-Step 'installing the exact dependency versions' @('-m', 'pip', 'install', '-r', 'requirements-lock.txt')
     }
     'data' {
-        $collect = @('-m', 'mbta_ds.cli', 'collect', '--days', "$Days") + $(if ($End) { @('--end', $End) } else { @() })
+        $collect = @('-m', 'mbta_ds.cli', 'collect', '--days', "$Days", '--end', $End) + $(if ($NoRidership) { @('--no-ridership') } else { @() })
         Invoke-Step "collecting $Days days of MBTA data" $collect
         Invoke-Step 'cleaning' @('-m', 'mbta_ds.cli', 'clean', '--refresh')
         Invoke-Step 'extracting features' @('-m', 'mbta_ds.cli', 'features', '--refresh')
@@ -110,7 +113,7 @@ Targets:
     }
     'all' {
         & $PSCommandPath setup
-        & $PSCommandPath data -Days $Days -End $End
+        & $PSCommandPath data -Days $Days -End $End -NoRidership:$NoRidership
         & $PSCommandPath model
         & $PSCommandPath cluster
         & $PSCommandPath figures

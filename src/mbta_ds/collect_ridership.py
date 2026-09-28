@@ -16,6 +16,7 @@ hard-coded so the pipeline keeps working as MBTA publishes more data.
 from __future__ import annotations
 
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
 
@@ -33,6 +34,12 @@ DAILY_PATH = config.RIDERSHIP_RAW_DIR / "gated_station_entries_daily.parquet"
 
 OUT_FIELDS = "service_date,time_period,stop_id,station_name,route_or_line,gated_entries"
 
+#: Days fetched before the analysis window, so the lagged 7-day demand mean and
+#: its trend against the 7 days before that are complete from the first day.
+LOOKBACK_DAYS = 14
+#: The service occasionally answers a valid query with zero rows under load.
+EMPTY_REPLY_ATTEMPTS = 4
+
 
 # ---------------------------------------------------------------------------
 # Coverage discovery
@@ -46,21 +53,29 @@ def coverage(session: requests.Session | None = None) -> tuple[date, date]:
     session = session or make_session()
     bounds: list[date] = []
     for order in ("ASC", "DESC"):
-        payload = get_json(
-            config.GATED_ENTRIES_QUERY_URL,
-            session,
-            params={
-                "where": "1=1",
-                "outFields": "service_date",
-                "returnGeometry": "false",
-                "orderByFields": f"service_date {order}",
-                "resultRecordCount": 1,
-                "f": "json",
-            },
-            timeout=120,
-        )
-        features = payload.get("features", [])
-        if not features:
+        # The service intermittently returns an empty (but HTTP 200) page for this
+        # query -- 1 call in 9 when tested. Retry rather than report "no data".
+        for attempt in range(1, EMPTY_REPLY_ATTEMPTS + 1):
+            payload = get_json(
+                config.GATED_ENTRIES_QUERY_URL,
+                session,
+                params={
+                    "where": "1=1",
+                    "outFields": "service_date",
+                    "returnGeometry": "false",
+                    "orderByFields": f"service_date {order}",
+                    "resultRecordCount": 1,
+                    "f": "json",
+                },
+                timeout=120,
+            )
+            features = payload.get("features", [])
+            if features:
+                break
+            log.warning("gated entries coverage query returned no rows (attempt %d/%d)",
+                        attempt, EMPTY_REPLY_ATTEMPTS)
+            time.sleep(2.0 * attempt)
+        else:
             raise RuntimeError("gated entries service returned no rows at all")
         bounds.append(_epoch_ms_to_date(features[0]["attributes"]["service_date"]))
     return bounds[0], bounds[1]
@@ -166,10 +181,12 @@ def fetch_gated_entries(
             if failures:
                 log.warning("%d of %d pages failed", failures, len(offsets))
 
-    if not rows:
-        raise RuntimeError(f"all pages failed for {start} -> {end}")
-    if len(rows) < total:
-        log.warning("fetched %s of %s rows; some pages failed", f"{len(rows):,}", f"{total:,}")
+    # A partial download would silently thin the demand signal, so it is fatal.
+    if failures or len(rows) != total:
+        raise RuntimeError(
+            f"gated entries {start} -> {end}: fetched {len(rows):,} of {total:,} rows "
+            f"({failures} page(s) failed); re-run the collect stage"
+        )
 
     return _normalise(pd.DataFrame(rows))
 

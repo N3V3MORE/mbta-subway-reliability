@@ -46,9 +46,16 @@ log = logging.getLogger(__name__)
 
 OUT_PATH = config.REPORTS_DIR / "story.html"
 FIGURES = config.FIGURES_DIR
-SPRING = config.DATA_DIR / "processed"
-WINTER = config.DATA_DIR / "runs" / "winter" / "processed"
-WINTER_WEATHER = config.DATA_DIR / "runs" / "winter" / "weather" / "boston_hourly.parquet"
+#: This run's results. Every number on the page comes from here, so a named run
+#: (``MBTA_RUN=winter``) writes a story about its own window only.
+SPRING = config.PROCESSED_DIR
+#: The main (unnamed) run also shows the winter run beside it, when that run has
+#: been built (``make RUN=winter END=2026-02-28 all``); named runs never do.
+_WINTER_RUN = config.DATA_DIR / "runs" / "winter"
+WINTER = _WINTER_RUN / "processed" if not config.RUN else config.PROCESSED_DIR / "__none__"
+WINTER_WEATHER = _WINTER_RUN / "weather" / "boston_hourly.parquet"
+#: How this run is labelled next to the winter comparison.
+SEASON = "Spring" if not config.RUN else config.RUN.title()
 
 # ---------------------------------------------------------------------------
 # Palette (validated: blue/orange pass every CVD and contrast check in both modes)
@@ -124,7 +131,8 @@ def example_journeys(arrivals: pd.DataFrame, route: str = "Orange") -> pd.DataFr
     rows = rows[rows["service_date"] >= sorted(rows["service_date"].unique())[-7]]
     rows = rows[~rows["is_weekend"].astype(bool)]
     full = rows.groupby(clean.RUN_KEY)["stop_id"].transform("size")
-    rows = rows[full == full.max()].sort_values([*clean.RUN_KEY, "stop_sequence"])
+    # Scheduled time, not stop_sequence, is the reliable stop order (clean.py, finding 5).
+    rows = rows[full == full.max()].sort_values([*clean.RUN_KEY, "scheduled_arrival_time"])
     runs = rows.groupby(clean.RUN_KEY, sort=False)
     summary = pd.DataFrame({
         "final": runs["delay_seconds"].last(),
@@ -191,7 +199,7 @@ def importance(top: int = 6) -> pd.DataFrame:
 def early_warning() -> pd.DataFrame | None:
     """Share of sudden big delays flagged in advance, at 50% alarm precision."""
     rows = []
-    for season, folder in (("Spring", SPRING), ("Winter", WINTER)):
+    for season, folder in ((SEASON, SPRING), ("Winter", WINTER)):
         path = folder / "tail_metrics.json"
         if not path.exists():
             continue
@@ -366,7 +374,7 @@ def fig_importance(table: pd.DataFrame) -> go.Figure:
 
 def fig_early_warning(table: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
-    for season, k in (("Spring", "blue"), ("Winter", "orange")):
+    for season, k in ((SEASON, "blue"), ("Winter", "orange")):
         rows = table[table["season"] == season]
         if rows.empty:
             continue
@@ -583,6 +591,10 @@ def build() -> dict:
         w = pd.read_csv(WINTER / "model_comparison.csv").set_index("model")["mae_seconds"]
         winter_mae = w.get("hist_gradient_boosting_change")
     start, end = pd.to_datetime(arrivals["service_date_parsed"]).agg(["min", "max"])
+    split = json.loads((SPRING / "model_metrics.json").read_text(encoding="utf-8"))["split"]
+    test_days = (pd.to_datetime(str(split["test_dates"][1]))
+                 - pd.to_datetime(str(split["test_dates"][0]))).days + 1
+    naive = float(ours.drop(["Our model", "Assume it stays as late as it is now"]).min())
 
     steps = journeys.assign(step=journeys.groupby("train", sort=False)["delay_minutes"].diff())
     jump = steps.loc[steps["step"].abs().idxmax()]
@@ -620,7 +632,8 @@ def build() -> dict:
                  _numbers((hours * 100).round(0).rename(columns=lambda h: f"{h}:00"))),
         _section("Why can delays be predicted at all?",
                  "A late train stays late: its delay barely changes from one stop to the next",
-                 f"Real {journeys.attrs['route']} Line trains from the last week of June, end to "
+                 f"Real {journeys.attrs['route']} Line trains from the week ending "
+                 f"{end:%d %B}, end to "
                  "end: one that ran nearly on time, one about 5 minutes late and one about 10. "
                  "The lines are mostly flat. The one big step, "
                  f"{abs(jump['step']):.0f} minutes at {html.escape(jump['station'])}, is the "
@@ -634,18 +647,24 @@ def build() -> dict:
                  f"Our model is off by {model:.0f} seconds on average, {guess / model:.0f}× better "
                  "than the best rule of thumb",
                  "Each bar is a way of guessing how late a train will be at its next stop, scored "
-                 "on three weeks of trains the model never saw. The two simple averages are "
-                 "wrong by over four minutes; \"it stays as late as it is\" is a good rule, and "
-                 "the model cuts its error by two thirds.",
+                 f"on the last {test_days} days of trains, which the model never saw. The two "
+                 f"simple averages are wrong by over {int(naive // 60)} minutes; \"it stays as "
+                 f"late as it is\" is a good rule, and the model cuts its error by "
+                 f"{1 - model / guess:.0%}.",
                  fig_prediction_error(errors),
                  _numbers(errors.set_index("method").round(1))),
     ]
     if winter is not None:
+        storm = winter["snow_cm"].idxmax()
+        held = winter.loc[storm, "model_error"] < winter.loc[storm, "guess_error"]
         sections.append(_section(
             "Does it hold up in a snowstorm?",
-            "Yes: on the worst storm day the model stayed far closer than the simple rule",
-            "Every day of the last three weeks of February 2026, including the 23 February "
-            "storm. Top: snowfall. Bottom: how far off each method was that day. An earlier "
+            "Yes: on the snowiest day the model stayed closer than the simple rule" if held
+            else "Not on the snowiest day: the simple rule did better there",
+            f"Every day of the winter test period, {winter.index.min():%d %B} to "
+            f"{winter.index.max():%d %B %Y}, including the {storm:%d %B} storm "
+            f"({winter.loc[storm, 'snow_cm']:.0f} cm). Top: snowfall. Bottom: how far off each "
+            "method was that day. An earlier "
             "version of the model broke down on storm days, when trains ran hours behind the "
             "timetable; predicting the change from stop to stop, not the delay itself, fixed it.",
             fig_winter(winter),
@@ -661,7 +680,7 @@ def build() -> dict:
         fig_importance(top),
         _numbers(top.set_index("label").round(1).rename(columns={"importance_mae": "Extra error (s)"}))))
     if warning is not None:
-        one = warning[(warning["stops_ahead"] == 1) & (warning["season"] == "Spring")]["caught"]
+        one = warning[(warning["stops_ahead"] == 1) & (warning["season"] == SEASON)]["caught"]
         sections.append(_section(
             "Can it warn about sudden big delays?",
             f"Sometimes: it flags about {one.iloc[0]:.0%} of them one stop in advance" if len(one)

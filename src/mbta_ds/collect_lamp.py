@@ -131,7 +131,7 @@ def download_performance(
 
     jobs: list[tuple[str, Path]] = []
     for row in selected.itertuples():
-        url = row.file_url or config.SUBWAY_PERF_URL_TMPL.format(
+        url = row.file_url if isinstance(row.file_url, str) and row.file_url else config.SUBWAY_PERF_URL_TMPL.format(
             service_date=config.format_service_date(row.service_date)
         )
         dest = config.LAMP_RAW_DIR / f"{config.format_service_date(row.service_date)}.parquet"
@@ -162,7 +162,11 @@ def download_performance(
                         continue
                     progress.step(dest.name)
             if failures:
-                log.warning("%d of %d downloads failed", failures, len(pending))
+                # A missing day would otherwise be silently absent from the analysis.
+                raise RuntimeError(
+                    f"{failures} of {len(pending)} LAMP downloads failed; re-run the "
+                    "collect stage (cached files are kept)"
+                )
 
     return [dest for _, dest in jobs if dest.exists() and dest.stat().st_size > 0]
 

@@ -20,7 +20,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from datetime import date
+from datetime import date, timedelta
 
 import pandas as pd
 
@@ -64,17 +64,25 @@ def stage_collect(args: argparse.Namespace) -> dict:
     ridership_coverage: tuple | None = None
 
     if not args.no_ridership:
+        # Deliberately fatal: silently dropping ridership would move the window's
+        # end to LAMP's latest date and analyse a different period altogether.
         try:
             rid_first, rid_last = collect_ridership.coverage(session)
-            ridership_coverage = (rid_first, rid_last)
-            window_end = min(window_end, rid_last)
-            first_limit = max(first_limit, rid_first)
-            logging.info("ridership coverage: %s -> %s", rid_first, rid_last)
-        except Exception as exc:  # noqa: BLE001 - degrade to delay-only analysis
-            logging.warning("could not read ridership coverage (%s); continuing", exc)
+        except Exception as exc:
+            raise SystemExit(
+                f"could not read ridership coverage ({exc}). Re-run, or pass "
+                "--no-ridership to analyse delays without the demand features."
+            ) from exc
+        ridership_coverage = (rid_first, rid_last)
+        window_end = min(window_end, rid_last)
+        first_limit = max(first_limit, rid_first)
+        logging.info("ridership coverage: %s -> %s", rid_first, rid_last)
 
-    if args.end:
-        window_end = min(window_end, _parse_date(args.end))
+    if args.end and args.end != "latest":
+        requested = _parse_date(args.end)
+        if requested > window_end:
+            raise SystemExit(f"--end {requested} is past the data every source covers ({window_end})")
+        window_end = requested
     window_start = max(
         pd.Timestamp(window_end) - pd.Timedelta(days=args.days - 1), pd.Timestamp(first_limit)
     )
@@ -96,12 +104,13 @@ def stage_collect(args: argparse.Namespace) -> dict:
 
     if ridership_coverage is not None:
         try:
+            # History before the window feeds the lagged demand features.
+            lookback = window_start - timedelta(days=collect_ridership.LOOKBACK_DAYS)
             summary["ridership"] = collect_ridership.collect(
-                start=window_start, end=window_end, session=session
+                start=max(lookback, ridership_coverage[0]), end=window_end, session=session,
             )
-        except Exception as exc:  # noqa: BLE001 - ridership is enrich-not-essential
-            logging.warning("ridership collection failed: %s", exc)
-            summary["ridership"] = {"error": str(exc)}
+        except Exception as exc:
+            raise SystemExit(f"ridership collection failed: {exc}") from exc
 
     summary["weather"] = collect_weather.collect(
         days=(window_end - window_start).days + 1,
@@ -201,9 +210,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("collect", help="download LAMP, ridership and weather data")
     p.add_argument("--days", type=int, default=90,
                    help="service days of history to fetch (default: 90)")
-    p.add_argument("--end", type=str, default=None,
-                   help="ISO date to end the shared window at (default: latest "
-                        "date covered by every source)")
+    p.add_argument("--end", type=str, default=config.DEFAULT_END,
+                   help=f"ISO date to end the shared window at (default: "
+                        f"{config.DEFAULT_END}, the published analysis; 'latest' "
+                        "follows the newest date every source covers)")
     p.add_argument("--no-ridership", action="store_true",
                    help="skip the ridership source and use the freshest LAMP data")
     p.add_argument("--skip-static", action="store_true", help="skip GTFS static tables")
@@ -258,6 +268,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--quick", action="store_true", help="fast subsampled run")
     p.add_argument("--full", action="store_true",
                    help="include the costly models in the training stage")
+    p.add_argument("--end", type=str, default=config.DEFAULT_END,
+                   help=f"last service date (default {config.DEFAULT_END}; 'latest' to follow the sources)")
+    p.add_argument("--no-ridership", action="store_true",
+                   help="skip the ridership source (demand features left empty)")
 
     return parser
 
@@ -270,13 +284,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.stage == "all":
         args.skip_static = False
         args.skip_alerts = False
-        args.no_ridership = False
-        args.end = None
-        args.refresh = False
         for stage in (stage_collect, stage_clean, stage_features, stage_validate,
                       stage_train, stage_tail, stage_cluster, stage_figures, stage_report,
                       stage_story):
             logging.info("=== %s ===", stage.__name__.replace("stage_", ""))
+            # Downloads stay cached; derived tables are always rebuilt, so a cache
+            # from another window or code version can never be reused silently.
+            args.refresh = stage is not stage_collect
             stage(args)
         return 0
 

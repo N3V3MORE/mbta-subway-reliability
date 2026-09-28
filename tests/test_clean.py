@@ -28,11 +28,24 @@ class TestServiceMidnightAnchor:
         actual = clean.service_midnight_epoch(pd.Series([20260626])).iloc[0]
         assert actual == expected
 
-    def test_handles_dst_transition_day(self):
-        """US DST starts 2026-03-08; local midnight is still 05:00 UTC that day."""
+    def test_spring_forward_anchor_is_noon_minus_12h(self):
+        """US DST starts 2026-03-08. GTFS counts from noon - 12 h = 23:00 EST the
+        day before, an hour before local midnight; a midnight anchor put every
+        delay that day off by -3,600 s in the real archive."""
         midnight = pd.Timestamp("2026-03-08", tz=config.SERVICE_TZ)
         actual = clean.service_midnight_epoch(pd.Series([20260308])).iloc[0]
-        assert actual == float(midnight.value // 10**9)
+        assert actual == float(midnight.value // 10**9) - 3600
+        # 08:00:00 in the timetable is 08:00 on the (EDT) wall clock.
+        eight = pd.Timestamp("2026-03-08 08:00", tz=config.SERVICE_TZ)
+        assert actual + 8 * 3600 == eight.value // 10**9
+
+    def test_fall_back_anchor_is_noon_minus_12h(self):
+        """DST ends 2025-11-02: noon - 12 h is 01:00 EDT, an hour after local midnight."""
+        midnight = pd.Timestamp("2025-11-02", tz=config.SERVICE_TZ)
+        actual = clean.service_midnight_epoch(pd.Series([20251102])).iloc[0]
+        assert actual == float(midnight.value // 10**9) + 3600
+        eight = pd.Timestamp("2025-11-02 08:00", tz=config.SERVICE_TZ)
+        assert actual + 8 * 3600 == eight.value // 10**9
 
     def test_vectorised_over_multiple_dates(self):
         result = clean.service_midnight_epoch(pd.Series([20260626, 20260627]))

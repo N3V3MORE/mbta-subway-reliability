@@ -88,13 +88,15 @@ def collect(days: int, *, end: date | None = None, refresh: bool = False) -> dic
         end = pd.Timestamp.now(tz="UTC").date()  # Timestamp.utcnow() is deprecated
     start = pd.Timestamp(end) - pd.Timedelta(days=days - 1)
     start = start.date()
+    # The last service day runs past midnight (to ~01:30), so fetch the next day too.
+    end = (pd.Timestamp(end) + pd.Timedelta(days=1)).date()
 
     if not refresh and OUT_PATH.exists():
         cached = pd.read_parquet(OUT_PATH)
         if not cached.empty:
             covered = (
                 cached["timestamp"].min().date() <= start
-                and cached["timestamp"].max().date() >= end - pd.Timedelta(days=6)
+                and cached["timestamp"].max() >= pd.Timestamp(end) + pd.Timedelta(hours=23)
             )
             if covered:
                 log.info("weather cache already covers %s -> %s", start, end)

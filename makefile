@@ -85,6 +85,8 @@ figures:
 	$(PYTHON) -m mbta_ds.cli figures
 
 report:
+	@echo "==> supporting analyses"
+	$(PYTHON) -m mbta_ds.cli extras
 	@echo "==> writing the report"
 	$(PYTHON) -m mbta_ds.cli report
 	@echo "==> writing the plain-language story"

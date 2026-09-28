@@ -38,6 +38,7 @@ def _toy_frame(dates=range(8), rows_per_date=40, seed=0) -> pd.DataFrame:
                     "delay_trend": np.nan,
                     "stop_count": rows_per_date // 4,
                     "fraction_through_trip": stop / (rows_per_date // 4),
+                    "stop_index": stop,
                     "scheduled_seconds_of_day": (7 + stop) * 3600,
                     "scheduled_elapsed_seconds": stop * 120.0,
                     "scheduled_travel_time": 120.0,
@@ -264,3 +265,21 @@ class TestAblationOrder:
         assert "+ weather" in labels
         assert "+ alerts" in labels
         assert labels.index("+ delay propagation") > labels.index("+ calendar")
+
+
+class TestTemporalEarlyStopping:
+    def test_holds_out_the_latest_dates(self):
+        frame = _toy_frame(dates=range(10))
+        fit_rows, val_rows = model_delay.temporal_validation(frame)
+        assert fit_rows["service_date"].max() < val_rows["service_date"].min()
+        assert val_rows["service_date"].nunique() == 1
+
+    def test_too_few_dates_falls_back(self):
+        assert model_delay.temporal_validation(_toy_frame(dates=range(3))) is None
+
+    def test_boosted_models_fit_with_a_dated_validation_set(self):
+        frame = _toy_frame(dates=range(10))
+        numeric, categorical = model_delay._columns(frame)
+        for model in (model_delay._boost(True), model_delay._change_boost(True)):
+            fitted = model_delay._fit(model, frame, numeric, categorical, "delay_seconds")
+            assert np.isfinite(fitted.predict(frame[numeric + categorical])).all()

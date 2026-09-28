@@ -64,6 +64,13 @@ DWELL_OUTLIER_SECONDS = 1800
 #: the 3-5 trains scheduled in front of it on the same track. It is a vehicle
 #: matched to the wrong scheduled trip (435 trips, typically offset by ~an hour).
 MISMATCH_EARLY_SECONDS = 1800
+#: A single stop this far from *both* neighbouring stops of its run, while those
+#: neighbours agree with each other to within :data:`GLITCH_AGREE_SECONDS`, is a
+#: bad record rather than a train: a real hold-up raises the delay and it *stays*
+#: raised at the next stop. At a run's first or last stop the one neighbour and the
+#: stop beyond it are used. Designed on the spring window (1,232 stops in 3.2M).
+GLITCH_SECONDS = 1800
+GLITCH_AGREE_SECONDS = 600
 
 #: Default target threshold: "late" means more than 5 minutes behind schedule.
 LATE_THRESHOLD_SECONDS = config.LATE_THRESHOLD_SECONDS
@@ -75,6 +82,26 @@ TRIP_ORDER = TRIP_KEY + ["scheduled_arrival_time", "stop_sequence"]
 #: mid-trip (delay jumps a median 68 s at the hand-over, against 24 s between
 #: ordinary stops), so "the previous stop" must never reach across trains.
 RUN_KEY = TRIP_KEY + ["run"]
+
+
+def isolated_glitches(frame: pd.DataFrame) -> pd.Series:
+    """Stops whose delay disagrees with both neighbours while they agree.
+
+    ``frame`` must be in trip order with a ``run`` column. Left in, one such
+    record (e.g. a Red Line stop logged 3.4 h early inside an on-time trip) is
+    copied forward as the next stop's "previous delay" and costs a prediction
+    hours of error.
+    """
+    delay = frame["delay_seconds"]
+    group = frame.groupby(RUN_KEY, sort=False)["delay_seconds"]
+    prev, nxt = group.shift(1), group.shift(-1)
+    prev2, nxt2 = group.shift(2), group.shift(-2)
+    far = lambda a, b: (a - b).abs() > GLITCH_SECONDS          # noqa: E731
+    near = lambda a, b: (a - b).abs() <= GLITCH_AGREE_SECONDS  # noqa: E731
+    interior = far(delay, prev) & far(delay, nxt) & near(prev, nxt)
+    first = prev.isna() & far(delay, nxt) & near(nxt, nxt2)
+    last = nxt.isna() & far(delay, prev) & near(prev, prev2)
+    return interior | first | last
 
 
 def is_arrival(frame: pd.DataFrame) -> pd.Series:
@@ -312,18 +339,27 @@ def build(
     if frame["dwell_implausible"].any():
         frame.loc[frame["dwell_implausible"], "dwell_time_seconds"] = np.nan
 
-    # --- whole trips matched to the wrong timetable entry ------------------
-    before = len(frame)
-    trip_median = frame.groupby(TRIP_KEY)["delay_seconds"].transform("median")
-    frame = frame[trip_median >= -MISMATCH_EARLY_SECONDS]
-    ledger.record("drop trips matched to the wrong schedule (>30 min early)",
-                  before, len(frame))
-
     # --- trip order, origins, and physically impossible timestamps -------
     frame = frame.sort_values(TRIP_ORDER).reset_index(drop=True)
     trip = frame.groupby(TRIP_KEY, sort=False)
     handover = frame["vehicle_id"].ne(trip["vehicle_id"].shift()) & (trip.cumcount() > 0)
     frame["run"] = handover.groupby([frame[k] for k in TRIP_KEY]).cumsum().astype("int8")
+
+    # --- single stops that disagree with the rest of their run -------------
+    before = len(frame)
+    # Repeated until none remain: removing one bad stop can expose its neighbour.
+    while (glitch := isolated_glitches(frame)).any():
+        frame = frame[~glitch].reset_index(drop=True)
+    ledger.record("drop isolated stops >30 min off both neighbours", before, len(frame))
+
+    # --- whole trips matched to the wrong timetable entry ------------------
+    # After the single-stop rule, so a trip's median is judged on its real stops.
+    before = len(frame)
+    trip_median = frame.groupby(TRIP_KEY)["delay_seconds"].transform("median")
+    frame = frame[trip_median >= -MISMATCH_EARLY_SECONDS].reset_index(drop=True)
+    ledger.record("drop trips matched to the wrong schedule (>30 min early)",
+                  before, len(frame))
+
     run = frame.groupby(RUN_KEY, sort=False)
     frame["stop_index"] = run.cumcount().astype("int16")
     # A run's first stop has no previous stop *on the same train*: at a trip

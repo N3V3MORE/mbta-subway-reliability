@@ -51,10 +51,13 @@ CATEGORICAL_FEATURES = ("route_id", "trunk_route_id", "direction_id", "station_n
 
 #: Numeric feature columns, grouped by theme so ablations are declarative.
 FEATURE_GROUPS: dict[str, tuple[str, ...]] = {
+    # `stop_count` and `fraction_through_trip` (which divides by it) are NOT
+    # features: `stop_count` is the number of stops the trip *recorded* (it equals
+    # the logged stops for 95% of trips), so it can reveal a trip later cut short.
+    # `stop_index`, the stops travelled so far, is known at prediction time.
     "schedule": (
         "stop_sequence",
-        "stop_count",
-        "fraction_through_trip",
+        "stop_index",
         "scheduled_seconds_of_day",
         "scheduled_hour",
         "scheduled_elapsed_seconds",
@@ -123,7 +126,7 @@ MAX_TRIP_OVERLAP_SECONDS = 300
 CATEGORICAL_GROUP = ("categorical",)
 
 #: Built into the table for diagnostics only; see the note on "calendar" above.
-DIAGNOSTIC_COLUMNS = ("days_since_window_start",)
+DIAGNOSTIC_COLUMNS = ("days_since_window_start", "stop_count", "fraction_through_trip")
 
 #: Peak hours by the MBTA's own definition of weekday peaks.
 PEAK_HOURS = (7, 8, 9, 16, 17, 18)
@@ -636,7 +639,8 @@ def build(
     keep = (
         list(dict.fromkeys(
             KEY_COLUMNS + TARGET_COLUMNS + tuple(declared) + DIAGNOSTIC_COLUMNS
-            + ("parent_station", "station_name", "direction_destination", "arrival_local")
+            + ("parent_station", "station_name", "direction_destination", "arrival_local",
+               "known_at")
         ))
     )
     keep = [c for c in keep if c in frame.columns]

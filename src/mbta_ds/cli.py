@@ -181,6 +181,12 @@ def stage_tail(args: argparse.Namespace) -> dict:
     return model_tail.run(quick=args.quick)
 
 
+def stage_extras(args: argparse.Namespace) -> dict:
+    from . import extras
+
+    return extras.run()
+
+
 def stage_crosscheck(args: argparse.Namespace) -> dict:
     from . import crosscheck
 
@@ -254,6 +260,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("figures", help="render interactive and static figures")
     p.set_defaults(func=stage_figures)
 
+    p = sub.add_parser("extras", help="supporting analyses behind the README's narrative claims")
+    p.set_defaults(func=stage_extras)
+
     p = sub.add_parser("crosscheck", help="compare our timestamps with TransitMatters (network)")
     p.set_defaults(func=stage_crosscheck)
 
@@ -285,8 +294,8 @@ def main(argv: list[str] | None = None) -> int:
         args.skip_static = False
         args.skip_alerts = False
         for stage in (stage_collect, stage_clean, stage_features, stage_validate,
-                      stage_train, stage_tail, stage_cluster, stage_figures, stage_report,
-                      stage_story):
+                      stage_train, stage_tail, stage_cluster, stage_figures, stage_extras,
+                      stage_report, stage_story):
             logging.info("=== %s ===", stage.__name__.replace("stage_", ""))
             # Downloads stay cached; derived tables are always rebuilt, so a cache
             # from another window or code version can never be reused silently.

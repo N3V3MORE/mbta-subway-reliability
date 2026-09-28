@@ -410,6 +410,9 @@ def cross_track_test(joined: pd.DataFrame) -> dict:
         out["chi2"] = float(chi2)
         out["chi2_p_value"] = float(p_value)
         out["chi2_dof"] = int(dof)
+        if contingency.shape == (2, 2):
+            # Exact, so valid however small the cells; χ² is only approximate there.
+            out["fisher_p_value"] = float(stats.fisher_exact(contingency.to_numpy())[1])
     else:
         out["chi2_p_value"] = None
 

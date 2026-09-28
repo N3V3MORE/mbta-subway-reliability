@@ -16,7 +16,7 @@ import logging
 
 import pandas as pd
 
-from . import clean, config
+from . import clean, collect_lamp, config
 from .http import get_json, make_session
 
 log = logging.getLogger(__name__)
@@ -57,6 +57,17 @@ def our_trips(frame: pd.DataFrame, route: str) -> tuple[str, str, pd.DataFrame]:
     return origin, dest, trips.sort_values("arr")
 
 
+def added_arrivals(day: str, route: str, stop_id: str) -> pd.Series:
+    """Local arrival times of ``ADDED-*`` trips (unscheduled service, excluded by the
+    cleaning) at ``stop_id`` on ``day``, read from the raw archive file."""
+    date = pd.Timestamp(day).date()
+    raw = collect_lamp.load_performance(date, date,
+                                        columns=("trip_id", "route_id", "stop_id", "stop_timestamp"))
+    added = raw[raw["trip_id"].astype(str).str.startswith("ADDED-") & (raw["route_id"] == route)
+                & (raw["stop_id"].astype(str) == str(stop_id))]
+    return _local(added["stop_timestamp"].dropna()).sort_values().reset_index(drop=True)
+
+
 def run() -> dict:
     """Compare every TransitMatters trip on the sample days with ours."""
     frame = clean.load().sort_values(clean.TRIP_ORDER)
@@ -75,9 +86,19 @@ def run() -> dict:
                                     direction="nearest",
                                     tolerance=pd.Timedelta(seconds=MATCH_TOLERANCE_SECONDS))
             hit = matched["ours_arr"].notna()
+            # Is each unmatched trip one of the ADDED-* trips the cleaning leaves out?
+            unmatched = matched.loc[~hit, ["arr"]].reset_index(drop=True)
+            added = pd.DataFrame({"added_arr": added_arrivals(day, route, dest)})
+            if len(unmatched) and len(added):
+                as_added = pd.merge_asof(unmatched, added, left_on="arr", right_on="added_arr",
+                                         direction="nearest",
+                                         tolerance=pd.Timedelta(seconds=MATCH_TOLERANCE_SECONDS))
+            else:
+                as_added = unmatched.assign(added_arr=pd.NaT)
             rows.append({
                 "route": route, "date": day, "from_stop": origin, "to_stop": dest,
                 "their_trips": len(theirs), "matched": int(hit.sum()),
+                "unmatched_added_trips": int(as_added["added_arr"].notna().sum()),
                 "median_arrival_gap_s": float((matched.loc[hit, "arr"] - matched.loc[hit, "ours_arr"])
                                               .dt.total_seconds().abs().median()),
                 "median_travel_their_s": float(theirs["travel_time_sec"].median()),
@@ -86,4 +107,6 @@ def run() -> dict:
             log.info("%s %s: %d/%d trips matched", route, day, rows[-1]["matched"], len(theirs))
     table = pd.DataFrame(rows).assign(match_rate=lambda t: t["matched"] / t["their_trips"])
     table.to_csv(OUT_PATH, index=False)
-    return {"pairs": len(table), "match_rate": float(table["matched"].sum() / table["their_trips"].sum())}
+    return {"pairs": len(table), "match_rate": float(table["matched"].sum() / table["their_trips"].sum()),
+            "unmatched": int((table["their_trips"] - table["matched"]).sum()),
+            "unmatched_added": int(table["unmatched_added_trips"].sum())}

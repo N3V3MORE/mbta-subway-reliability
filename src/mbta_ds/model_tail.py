@@ -113,14 +113,25 @@ def evaluate_horizon(k: int, *, quick: bool) -> dict:
     # Averaged over three seeds: with ~1,250 onsets, a single seed's onset PR-AUC
     # ranged from 0.11 to 0.22 on identical data, which is noise, not signal.
     seeds = md.PROBE_SEEDS[:1] if quick else md.PROBE_SEEDS
-    proba = np.mean([
-        md._fit(HistGradientBoostingClassifier(categorical_features="from_dtype",
-                                               max_iter=150 if quick else 300, learning_rate=0.08,
-                                               early_stopping=True, random_state=seed),
-                train, numeric, categorical, "big_delay").predict_proba(X)[:, 1]
-        for seed in seeds], axis=0)
+
+    def classifier(rows: pd.DataFrame, target: str, seed: int) -> np.ndarray:
+        model = HistGradientBoostingClassifier(
+            categorical_features="from_dtype", max_iter=150 if quick else 300,
+            learning_rate=0.08, early_stopping=True, random_state=seed)
+        return md._fit(model, rows, numeric, categorical, target).predict_proba(X)[:, 1]
+
+    per_seed = [classifier(train, "big_delay", seed) for seed in seeds]
+    proba = np.mean(per_seed, axis=0)
+    # Two ways of aiming at onsets directly, scored like the rest: train only on
+    # trains under 5 minutes late now, or target "loses 5+ minutes from here".
+    on_time = train[train["prev_delay_1"] < ONSET_BELOW_SECONDS]
+    train = train.assign(loses_5min=((train["delay_seconds"] - train["prev_delay_1"])
+                                     > ONSET_BELOW_SECONDS).astype(int))
     scores = {
         "model": proba,
+        **{f"model, single seed {seed}": p for seed, p in zip(seeds, per_seed)},
+        "model trained on on-time trains only": classifier(on_time, "big_delay", md.SEED),
+        "model targeting a 5+ minute loss": classifier(train, "loses_5min", md.SEED),
         # Baselines rank trains by one signal each; higher means "more likely late".
         "baseline: how late the train is now": test["prev_delay_1"].to_numpy(dtype=float),
         "baseline: how late the line is now": test["line_late_share_15m"].fillna(0).to_numpy(),

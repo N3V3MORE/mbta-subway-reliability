@@ -81,6 +81,9 @@ def check_clean(frame: pd.DataFrame, empty_at_source: frozenset = frozenset(),
                .sum().sum(), "==", 0),
         _check(c, "share of rows where travel_time == stop_ts - move_ts",
                travel_matches.mean(), ">=", 0.999),
+        _check(c, "isolated stops more than 30 min off both neighbours",
+               clean.isolated_glitches(frame.sort_values(clean.TRIP_ORDER)).sum()
+               if "run" in frame else 0, "==", 0),
         _check(c, "trips running more than 30 min early on average (mismatched)",
                (trip["delay_seconds"].median() < -clean.MISMATCH_EARLY_SECONDS).sum(), "==", 0),
         # Descriptive, not a fault: snowstorms push this to 0.7% in winter.

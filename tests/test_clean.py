@@ -239,3 +239,22 @@ class TestLedger:
         frame = ledger.to_frame()
         assert list(frame["step"]) == ["a", "b"]
         assert list(frame["rows_removed"]) == [3, 2]
+
+
+class TestIsolatedGlitches:
+    @staticmethod
+    def _run(delays):
+        return pd.DataFrame({"service_date": 20260601, "trip_id": "1", "run": 0,
+                             "delay_seconds": [float(d) for d in delays]})
+
+    def test_single_stop_hours_off_is_flagged(self):
+        flags = clean.isolated_glitches(self._run([60, 90, -12085, 96, 120]))
+        assert flags.tolist() == [False, False, True, False, False]
+
+    def test_a_real_hold_up_that_persists_is_kept(self):
+        flags = clean.isolated_glitches(self._run([60, 90, 2400, 2430, 2450]))
+        assert not flags.any()
+
+    def test_glitched_first_and_last_stops_are_flagged(self):
+        assert clean.isolated_glitches(self._run([-9000, 30, 40, 50])).tolist() == [True, False, False, False]
+        assert clean.isolated_glitches(self._run([30, 40, 50, 9000])).tolist() == [False, False, False, True]

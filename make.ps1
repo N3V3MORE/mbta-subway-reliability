@@ -105,6 +105,7 @@ Targets:
         Invoke-Step 'rendering figures' @('-m', 'mbta_ds.cli', 'figures')
     }
     'report' {
+        Invoke-Step 'supporting analyses' @('-m', 'mbta_ds.cli', 'extras')
         Invoke-Step 'writing the report' @('-m', 'mbta_ds.cli', 'report')
         Invoke-Step 'writing the plain-language story' @('-m', 'mbta_ds.cli', 'story')
     }

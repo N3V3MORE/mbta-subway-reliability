@@ -205,17 +205,48 @@ def make_preprocessor(
     )
 
 
+#: Share of the latest training service dates held out to decide when boosting
+#: stops. A random row split (scikit-learn's default) puts stops of one trip on
+#: both sides, which flatters the validation loss.
+EARLY_STOP_FRACTION = 0.1
+
+
+def _early_stopping(model) -> bool:
+    inner = model.estimator if isinstance(model, ChangeRegressor) else model
+    return isinstance(inner, NATIVE_MODELS) and inner.early_stopping is True
+
+
+def temporal_validation(train: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame] | None:
+    """Split off the latest :data:`EARLY_STOP_FRACTION` of service dates, or ``None``
+    when there are too few dates to hold any out."""
+    dates = np.sort(train["service_date"].unique())
+    held = max(1, int(round(len(dates) * EARLY_STOP_FRACTION)))
+    if len(dates) < 5:
+        return None
+    cut = dates[-held]
+    return train[train["service_date"] < cut], train[train["service_date"] >= cut]
+
+
 def _fit(model, train: pd.DataFrame, numeric: list[str], categorical: list[str],
          target: str):
     """Fit one candidate on ``train``; learned models are wrapped in a pipeline.
 
     Baselines are fit as-is. Random forests see at most :data:`RF_SAMPLE` rows,
     since impurity gains on 400k rows are not worth the order-of-magnitude cost.
+    Boosted models stop early on the latest training dates (:func:`temporal_validation`).
     """
     if isinstance(model, (RandomForestRegressor, RandomForestClassifier)) and len(train) > RF_SAMPLE:
         train = train.sample(RF_SAMPLE, random_state=SEED)
-    return _pipeline(model, numeric, categorical).fit(
-        train[numeric + categorical], train[target].to_numpy(dtype=float))
+    cols = numeric + categorical
+    pipeline = _pipeline(model, numeric, categorical)
+    split = temporal_validation(train) if _early_stopping(model) else None
+    if split is None:
+        return pipeline.fit(train[cols], train[target].to_numpy(dtype=float))
+    fit_rows, val_rows = split
+    val = {"X_val": val_rows[cols], "y_val": val_rows[target].to_numpy(dtype=float)}
+    if not isinstance(pipeline, ChangeRegressor):
+        val = {f"model__{k}": v for k, v in val.items()}
+    return pipeline.fit(fit_rows[cols], fit_rows[target].to_numpy(dtype=float), **val)
 
 
 def _pipeline(model, numeric: list[str], categorical: list[str]):
@@ -350,9 +381,17 @@ class ChangeRegressor(BaseEstimator, RegressorMixin):
     def __init__(self, estimator):
         self.estimator = estimator
 
-    def fit(self, X, y):
+    def fit(self, X, y, X_val=None, y_val=None):
         self.base_ = PersistenceRegressor().fit(X)
-        self.estimator_ = clone(self.estimator).fit(X, np.asarray(y, dtype=float) - self.base_.predict(X))
+        change = np.asarray(y, dtype=float) - self.base_.predict(X)
+        extra = {}
+        if X_val is not None:
+            # The early-stopping set is judged on the same target: the change.
+            extra = {"X_val": X_val,
+                     "y_val": np.asarray(y_val, dtype=float) - self.base_.predict(X_val)}
+            if isinstance(self.estimator, Pipeline):
+                extra = {f"model__{k}": v for k, v in extra.items()}
+        self.estimator_ = clone(self.estimator).fit(X, change, **extra)
         return self
 
     def predict(self, X):
@@ -706,12 +745,23 @@ def run_backtest(frame: pd.DataFrame, *, quick: bool) -> pd.DataFrame:
             train = features.stratified_sample(frame[frame["service_date"] < window[0]],
                                                TRAIN_ROWS // 4 if quick else TRAIN_ROWS, SEED)
             y = test["delay_seconds"].to_numpy()
+            X = test[numeric + categorical]
             model = _fit(_change_boost(quick), train, numeric, categorical, "delay_seconds")
+            level = _fit(_boost(quick, loss="absolute_error"), train, numeric, categorical,
+                         "delay_seconds")
+            predicted, level_pred = model.predict(X), level.predict(X)
+            persistence = PersistenceRegressor().fit(train).predict(test)
+            # Arrivals within an hour of the timetable: is the change model's win
+            # only on the few rows logged hours off schedule?
+            within = np.abs(y) <= 3600
             rows.append({
                 "test_start": str(window[0]), "test_end": str(window[-1]),
                 "train_days": int(train["service_date"].nunique()), "n_test": len(test),
-                "persistence_mae": _mae(PersistenceRegressor().fit(train).predict(test), y),
-                "model_mae": _mae(model.predict(test[numeric + categorical]), y),
+                "persistence_mae": _mae(persistence, y),
+                "model_mae": _mae(predicted, y),
+                "level_model_mae": _mae(level_pred, y),
+                "persistence_mae_within_1h": _mae(persistence[within], y[within]),
+                "model_mae_within_1h": _mae(predicted[within], y[within]),
             })
             progress.step(f"{window[0]}..{window[-1]}",
                           extra=f"MAE {rows[-1]['model_mae']:.1f}s vs {rows[-1]['persistence_mae']:.1f}s")
@@ -730,8 +780,11 @@ def run_horizons(*, quick: bool, cutoff) -> pd.DataFrame:
     rows: list[dict] = []
     horizons = HORIZONS[:2] if quick else HORIZONS
     network = set(features.FEATURE_GROUPS["network"])
+    key = ["service_date", "trip_id", "stop_id"]
+    common = None   # arrivals scorable at the longest horizon, hence at every one
     with Progress(len(horizons), "prediction horizon") as progress:
-        for k in horizons:
+        # Longest horizon first: its test arrivals are the common set.
+        for k in sorted(horizons, reverse=True):
             frame = features.build(horizon=k, no_cache=True,
                                    max_rows=features.QUICK_MAX_ROWS if quick else None)
             train = features.stratified_sample(frame[frame["service_date"] <= cutoff],
@@ -741,15 +794,25 @@ def run_horizons(*, quick: bool, cutoff) -> pd.DataFrame:
             y = test["delay_seconds"].to_numpy()
             row = {"horizon_stops": k, "n_test": len(test),
                    "persistence_mae": _mae(PersistenceRegressor().fit(train).predict(test), y)}
+            ids = pd.MultiIndex.from_frame(test[key].astype(str))
+            if common is None:
+                common = ids
+            same = ids.isin(common)
+            row["n_common"] = int(same.sum())
+            row["persistence_mae_common"] = _mae(
+                PersistenceRegressor().fit(train).predict(test[same]), y[same])
             for label, cols in (("own_train_mae", [c for c in numeric if c not in network]),
                                 ("with_other_trains_mae", numeric)):
                 model = _fit(_change_boost(quick), train, cols, categorical, "delay_seconds")
-                row[label] = _mae(model.predict(test[cols + categorical]), y)
+                predicted = model.predict(test[cols + categorical])
+                row[label] = _mae(predicted, y)
+                if label == "with_other_trains_mae":
+                    row["with_other_trains_mae_common"] = _mae(predicted[same], y[same])
             rows.append(row)
             progress.step(f"{k} stop(s) ahead",
                           extra=f"persistence {row['persistence_mae']:.1f}s  own {row['own_train_mae']:.1f}s  "
                                 f"+others {row['with_other_trains_mae']:.1f}s")
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows).sort_values("horizon_stops").reset_index(drop=True)
 
 
 def compute_importance(pipeline, test: pd.DataFrame, numeric: list[str],
@@ -826,7 +889,8 @@ def run(*, quick: bool = False, full: bool = False) -> dict:
          "trunk_route_id", "scheduled_hour", "stop_sequence",
          "delay_seconds", "late", "prev_delay_1"]
     ].assign(predicted_delay=test_predictions,
-             persistence_delay=reg_fitted["baseline_persistence"].predict(X_test))
+             persistence_delay=reg_fitted["baseline_persistence"].predict(X_test),
+             level_predicted_delay=reg_fitted["hist_gradient_boosting_mae"].predict(X_test))
     predictions["abs_error"] = (predictions["predicted_delay"] - predictions["delay_seconds"]).abs()
     predictions.to_parquet(PREDICTIONS_PATH, index=False)
 

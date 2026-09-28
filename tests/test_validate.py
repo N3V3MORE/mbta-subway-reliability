@@ -28,6 +28,16 @@ class TestCleanChecks:
         failed = _failed(validate.check_clean(doubled))
         assert "duplicate (service_date, trip_id, stop_id)" in failed
 
+    def test_a_day_empty_at_the_source_is_reported_not_failed(self, clean_frame):
+        from datetime import timedelta
+
+        day = clean_frame["service_date_parsed"].iloc[0]
+        later = clean_frame.assign(service_date_parsed=day + timedelta(days=2))
+        gap = pd.concat([clean_frame, later], ignore_index=True)     # day+1 missing
+        lost = "service dates lost by the pipeline"
+        assert lost in _failed(validate.check_clean(gap))
+        assert lost not in _failed(validate.check_clean(gap, frozenset({day + timedelta(days=1)})))
+
     def test_unresolved_station_ids_fail(self, clean_frame):
         broken = clean_frame.assign(station_name="place-unknown")
         assert "stations left as raw ids (name lookup failed)" in _failed(

@@ -96,6 +96,9 @@ def reliability_matrix(frame: pd.DataFrame | None = None) -> pd.DataFrame:
     )
     # A station that has no service in an hour gets the network-wide value for
     # that hour, so the profile reflects "no data" rather than a fake zero delay.
+    # An hour with no service anywhere (e.g. an overnight shutdown) has no
+    # network value either; it carries no information, so it is dropped.
+    pivoted = pivoted.dropna(axis=1, how="all")
     pivoted = pivoted.fillna(pivoted.median(axis=0))
 
     stats_frame = frame.groupby("station_name").agg(

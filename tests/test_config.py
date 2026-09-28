@@ -58,6 +58,23 @@ def test_window_manifest_roundtrip(tmp_path, monkeypatch):
     assert config.load_window() == (date(2026, 4, 2), date(2026, 6, 30))
 
 
+def test_named_run_gets_its_own_folders_but_shares_downloads(monkeypatch):
+    import importlib
+
+    monkeypatch.setenv("MBTA_RUN", "winter")
+    winter = importlib.reload(config)
+    try:
+        assert winter.PROCESSED_DIR == winter.DATA_DIR / "runs" / "winter" / "processed"
+        assert winter.WINDOW_PATH.parent == winter.DATA_DIR / "runs" / "winter"
+        assert winter.RIDERSHIP_RAW_DIR.parent == winter.DATA_DIR / "runs" / "winter"
+        assert winter.REPORTS_DIR == winter.ROOT / "reports" / "winter"
+        assert winter.LAMP_RAW_DIR == winter.DATA_DIR / "raw" / "lamp"   # shared
+    finally:
+        monkeypatch.delenv("MBTA_RUN")
+        importlib.reload(config)
+    assert config.PROCESSED_DIR == config.DATA_DIR / "processed"
+
+
 def test_service_day_constants_are_consistent():
     # The MBTA service day starts at 03:00 and GTFS times may exceed 24 hours,
     # which is exactly why the cleaning anchor must be local midnight.

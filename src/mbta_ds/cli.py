@@ -172,6 +172,12 @@ def stage_tail(args: argparse.Namespace) -> dict:
     return model_tail.run(quick=args.quick)
 
 
+def stage_crosscheck(args: argparse.Namespace) -> dict:
+    from . import crosscheck
+
+    return crosscheck.run()
+
+
 def stage_report(args: argparse.Namespace) -> dict:
     from . import report
 
@@ -231,6 +237,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("figures", help="render interactive and static figures")
     p.set_defaults(func=stage_figures)
+
+    p = sub.add_parser("crosscheck", help="compare our timestamps with TransitMatters (network)")
+    p.set_defaults(func=stage_crosscheck)
 
     p = sub.add_parser("report", help="write reports/report.html and reports/tables/*.csv")
     p.set_defaults(func=stage_report)

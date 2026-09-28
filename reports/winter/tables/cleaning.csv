@@ -1,0 +1,8 @@
+Cleaning step,Rows removed
+load raw performance rows,0
+"drop non-scheduled trip namespaces ('ADDED-', 'NONREV-')",654546
+drop rows missing observed or scheduled time,13457
+"drop duplicate (service_date, trip_id, stop_id)",1292
+drop duplicate visits under a second platform id,325
+drop trips matched to the wrong schedule (>30 min early),3504
+final clean rows,0

@@ -26,6 +26,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+from sklearn.base import BaseEstimator, RegressorMixin, clone
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import (
     HistGradientBoostingClassifier,
@@ -207,14 +208,26 @@ def _fit(model, train: pd.DataFrame, numeric: list[str], categorical: list[str],
     """
     if isinstance(model, (RandomForestRegressor, RandomForestClassifier)) and len(train) > RF_SAMPLE:
         train = train.sample(RF_SAMPLE, random_state=SEED)
-    if not isinstance(model, BASELINES):
-        model = Pipeline([
-            ("prep", make_preprocessor(numeric, categorical,
-                                       scale=isinstance(model, SCALED_MODELS),
-                                       one_hot=not isinstance(model, NATIVE_MODELS))),
-            ("model", model),
-        ])
-    return model.fit(train[numeric + categorical], train[target].to_numpy(dtype=float))
+    return _pipeline(model, numeric, categorical).fit(
+        train[numeric + categorical], train[target].to_numpy(dtype=float))
+
+
+def _pipeline(model, numeric: list[str], categorical: list[str]):
+    """Wrap a learned model in its preprocessing; baselines are returned as-is.
+
+    A :class:`ChangeRegressor` keeps the raw columns (it reads the previous
+    stop's delay itself) and wraps its inner model instead.
+    """
+    if isinstance(model, BASELINES):
+        return model
+    if isinstance(model, ChangeRegressor):
+        return ChangeRegressor(_pipeline(model.estimator, numeric, categorical))
+    return Pipeline([
+        ("prep", make_preprocessor(numeric, categorical,
+                                   scale=isinstance(model, SCALED_MODELS),
+                                   one_hot=not isinstance(model, NATIVE_MODELS))),
+        ("model", model),
+    ])
 
 
 # ---------------------------------------------------------------------------
@@ -317,6 +330,34 @@ class GroupRateClassifier(GroupMeanRegressor):
         return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
 
 
+class ChangeRegressor(BaseEstimator, RegressorMixin):
+    """Predict how much delay a train gains or loses since its last stop.
+
+    The target is ``delay - persistence``, and the prediction adds persistence
+    back. A tree model can only output values it saw in training, so asked for
+    the delay itself it caps out: in winter, trains logged hours "late" on storm
+    days were predicted at a fraction of that while persistence copied them
+    forward exactly. The change since the last stop stays small whatever the
+    delay is, so this framing never runs out of range.
+    """
+
+    def __init__(self, estimator):
+        self.estimator = estimator
+
+    def fit(self, X, y):
+        self.base_ = PersistenceRegressor().fit(X)
+        self.estimator_ = clone(self.estimator).fit(X, np.asarray(y, dtype=float) - self.base_.predict(X))
+        return self
+
+    def predict(self, X):
+        return self.base_.predict(X) + self.estimator_.predict(X)
+
+
+def _change_boost(quick: bool) -> ChangeRegressor:
+    """The headline model: absolute-error boosting on the change in delay."""
+    return ChangeRegressor(_boost(quick, loss="absolute_error"))
+
+
 BASELINES = (ZeroRegressor, AlwaysOnTimeClassifier, PersistenceRegressor,
              PersistenceClassifier, GroupMeanRegressor)
 
@@ -336,7 +377,9 @@ def regression_models(quick: bool, full: bool = False) -> dict[str, object]:
 
     ``hist_gradient_boosting_mae`` optimises absolute error, the metric the
     project is scored on; the squared-error version chases the long right tail
-    at the expense of the typical arrival. The random forest is opt-in via
+    at the expense of the typical arrival. ``hist_gradient_boosting_change`` is
+    the same model predicting the change since the last stop (see
+    :class:`ChangeRegressor`). The random forest is opt-in via
     ``full`` because its cost is super-linear in the training rows.
     """
     candidates: dict[str, object] = {
@@ -348,6 +391,7 @@ def regression_models(quick: bool, full: bool = False) -> dict[str, object]:
                                                min_samples_leaf=20, random_state=SEED),
         "hist_gradient_boosting": _boost(quick),
         "hist_gradient_boosting_mae": _boost(quick, loss="absolute_error"),
+        "hist_gradient_boosting_change": _change_boost(quick),
     }
     if full:
         candidates["random_forest"] = RandomForestRegressor(
@@ -488,6 +532,8 @@ ABLATION_ORDER = (
                   "weather", "alerts")),
     ("+ other trains", ("schedule", "categorical", "calendar", "propagation", "demand",
                         "weather", "alerts", "network")),
+    ("+ same train's last trip", ("schedule", "categorical", "calendar", "propagation", "demand",
+                                  "weather", "alerts", "network", "vehicle")),
 )
 
 
@@ -649,8 +695,7 @@ def run_backtest(frame: pd.DataFrame, *, quick: bool) -> pd.DataFrame:
             train = features.stratified_sample(frame[frame["service_date"] < window[0]],
                                                TRAIN_ROWS // 4 if quick else TRAIN_ROWS, SEED)
             y = test["delay_seconds"].to_numpy()
-            model = _fit(_boost(quick, loss="absolute_error"), train, numeric, categorical,
-                         "delay_seconds")
+            model = _fit(_change_boost(quick), train, numeric, categorical, "delay_seconds")
             rows.append({
                 "test_start": str(window[0]), "test_end": str(window[-1]),
                 "train_days": int(train["service_date"].nunique()), "n_test": len(test),
@@ -687,8 +732,7 @@ def run_horizons(*, quick: bool, cutoff) -> pd.DataFrame:
                    "persistence_mae": _mae(PersistenceRegressor().fit(train).predict(test), y)}
             for label, cols in (("own_train_mae", [c for c in numeric if c not in network]),
                                 ("with_other_trains_mae", numeric)):
-                model = _fit(_boost(quick, loss="absolute_error"), train, cols, categorical,
-                             "delay_seconds")
+                model = _fit(_change_boost(quick), train, cols, categorical, "delay_seconds")
                 row[label] = _mae(model.predict(test[cols + categorical]), y)
             rows.append(row)
             progress.step(f"{k} stop(s) ahead",

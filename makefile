@@ -15,6 +15,12 @@ export PYTHONPATH := src
 
 #: Service days of history. `make DAYS=180 data` fetches a longer window.
 DAYS ?= 90
+#: Optional last service date, e.g. `make END=2026-02-28 RUN=winter all`.
+END ?=
+#: Optional run name: results go to data/runs/$(RUN)/ and reports/$(RUN)/.
+ifdef RUN
+export MBTA_RUN := $(RUN)
+endif
 
 .PHONY: help all setup data live model model-full cluster figures report test clean distclean
 
@@ -44,7 +50,7 @@ setup:
 
 data:
 	@echo "==> collecting $(DAYS) days of MBTA data"
-	$(PYTHON) -m mbta_ds.cli collect --days $(DAYS)
+	$(PYTHON) -m mbta_ds.cli collect --days $(DAYS) $(if $(END),--end $(END))
 	@echo "==> cleaning"
 	$(PYTHON) -m mbta_ds.cli clean --refresh
 	@echo "==> extracting features"

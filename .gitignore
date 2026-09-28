@@ -6,6 +6,7 @@
 data/raw/
 data/interim/
 data/processed/
+data/runs/
 
 # ---------------------------------------------------------------------------
 # Secrets. MBTA_API_KEY lives in .env, which must never be committed.

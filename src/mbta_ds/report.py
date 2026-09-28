@@ -25,6 +25,7 @@ OUT_PATH = config.REPORTS_DIR / "report.html"
 
 #: Result tables exported as CSV: name -> (loader, {column: readable name}).
 MODEL_LABELS = {
+    "hist_gradient_boosting_change": "Gradient boosting on the change since the last stop",
     "hist_gradient_boosting_mae": "Gradient boosting (absolute-error loss)",
     "hist_gradient_boosting": "Gradient boosting (squared-error loss)",
     "decision_tree": "Decision tree",

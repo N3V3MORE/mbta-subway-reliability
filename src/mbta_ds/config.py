@@ -18,17 +18,25 @@ ROOT = Path(__file__).resolve().parents[2]
 
 DATA_DIR = ROOT / "data"
 RAW_DIR = DATA_DIR / "raw"
-PROCESSED_DIR = DATA_DIR / "processed"
+
+#: A named run (``MBTA_RUN=winter``) keeps everything tied to its date window --
+#: the window, ridership, weather, processed tables and reports -- in folders of
+#: its own, so several windows coexist. Downloads that do not depend on the
+#: window (daily performance files, stops, alerts) stay shared.
+RUN = os.environ.get("MBTA_RUN", "").strip()
+RUN_DIR = DATA_DIR / "runs" / RUN if RUN else DATA_DIR
+RUN_RAW_DIR = RUN_DIR if RUN else RAW_DIR
+PROCESSED_DIR = RUN_DIR / "processed"
 #: Everything a person reads: the report page, its figures and its tables.
-REPORTS_DIR = ROOT / "reports"
+REPORTS_DIR = ROOT / "reports" / RUN if RUN else ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
 TABLES_DIR = REPORTS_DIR / "tables"
 
 LAMP_RAW_DIR = RAW_DIR / "lamp"          # per-service-date performance parquet
-STATIC_RAW_DIR = RAW_DIR / "static"      # routes / stops / trips / stop_times
+STATIC_RAW_DIR = RAW_DIR / "static"      # the stops table
 ALERTS_RAW_DIR = RAW_DIR / "alerts"
-RIDERSHIP_RAW_DIR = RAW_DIR / "ridership"
-WEATHER_RAW_DIR = RAW_DIR / "weather"
+RIDERSHIP_RAW_DIR = RUN_RAW_DIR / "ridership"
+WEATHER_RAW_DIR = RUN_RAW_DIR / "weather"
 V3_RAW_DIR = RAW_DIR / "v3"              # live collector output
 
 ALL_DIRS = [
@@ -171,14 +179,14 @@ def format_service_date(value: date) -> str:
 # The collection stage resolves ONE window shared by every source (LAMP is the
 # long archive, ridership the short one). Persisting it means later stages cannot
 # silently disagree about which dates are under analysis.
-WINDOW_PATH = DATA_DIR / "analysis_window.json"
+WINDOW_PATH = RUN_DIR / "analysis_window.json"
 
 
 def save_window(start: date, end: date) -> None:
     """Persist the resolved analysis window for downstream stages."""
     import json
 
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    WINDOW_PATH.parent.mkdir(parents=True, exist_ok=True)
     WINDOW_PATH.write_text(
         json.dumps({"start": start.isoformat(), "end": end.isoformat()}, indent=2),
         encoding="utf-8",

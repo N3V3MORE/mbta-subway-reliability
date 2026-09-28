@@ -197,6 +197,19 @@ class TestReliabilityMatrix:
         assert matrix.loc["B", "h09"] == pytest.approx(300.0)
         assert matrix.loc["B", "h08"] == pytest.approx(-50.0)
 
+    def test_drops_hours_with_no_service_anywhere(self):
+        # Winter had an overnight hour with no trains on any line; that column
+        # has no network value to fill from and must not reach the clustering.
+        frame = pd.DataFrame({
+            "station_name": ["A", "B"],
+            "scheduled_hour": [8, 8],
+            "delay_seconds": [100.0, -50.0],
+            "late": [False, False],
+        })
+        matrix = cluster_stations.reliability_matrix(frame)
+        assert "h03" not in matrix.columns
+        assert not matrix.isna().any().any()
+
     def test_reports_summary_statistics(self):
         frame = pd.DataFrame({
             "station_name": ["A"] * 4,

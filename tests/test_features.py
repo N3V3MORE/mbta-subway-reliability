@@ -235,6 +235,51 @@ class TestNetworkFeatures:
         assert row["line_late_share_15m"] == 0.5
 
 
+def _runs(rows: list[tuple]) -> pd.DataFrame:
+    """(trip, vehicle, sched, stop_ts, delay, known_at) rows on one service date."""
+    return pd.DataFrame(rows, columns=["trip_id", "vehicle_id", "scheduled_epoch", "stop_timestamp",
+                                       "delay_seconds", "known_at"]).assign(service_date=SERVICE_DATE, run=0)
+
+
+class TestVehicleHistory:
+    def test_previous_trip_of_the_same_train(self):
+        frame = _runs([
+            ("A", "v1", 1_000, 1_100, 100.0, np.nan),
+            ("A", "v1", 1_500, 1_700, 200.0, 1_150.0),   # A ends at 1700, 200 s late
+            ("B", "v1", 2_000, 2_060, 60.0, np.nan),
+            ("B", "v1", 2_300, 2_400, 100.0, 2_100.0),
+            ("C", "v2", 2_000, 2_010, 10.0, 2_050.0),    # another train: no history
+        ])
+        out = features.attach_vehicle_history(frame).set_index(["trip_id", "stop_timestamp"])
+        assert out.loc[("B", 2_400), "vehicle_prev_trip_delay"] == 200.0
+        assert out.loc[("B", 2_400), "vehicle_layover_seconds"] == 2_000 - 1_700
+        assert np.isnan(out.loc[("A", 1_700), "vehicle_prev_trip_delay"])
+        assert np.isnan(out.loc[("C", 2_010), "vehicle_prev_trip_delay"])
+
+    def test_previous_trip_is_hidden_until_it_has_ended(self):
+        """Terminal noise can make trip A 'end' after trip B starts: not yet known."""
+        frame = _runs([
+            ("A", "v1", 1_000, 1_000, 0.0, np.nan),
+            ("A", "v1", 1_500, 2_100, 50.0, 1_050.0),    # A's last record at 2100
+            ("B", "v1", 2_000, 2_000, 0.0, np.nan),
+            ("B", "v1", 2_300, 2_300, 0.0, 2_050.0),     # predicted at 2050 < 2100
+            ("B", "v1", 2_600, 2_600, 0.0, 2_350.0),     # predicted at 2350 > 2100
+        ])
+        b = features.attach_vehicle_history(frame).query("trip_id == 'B'")
+        assert np.isnan(b["vehicle_prev_trip_delay"].iloc[1])
+        assert b["vehicle_prev_trip_delay"].iloc[2] == 50.0
+
+    def test_impossible_overlap_means_not_the_same_train(self):
+        frame = _runs([
+            ("A", "v1", 1_000, 1_000, 0.0, np.nan),
+            ("A", "v1", 9_000, 9_000, 0.0, 1_100.0),     # "ends" hours after B starts
+            ("B", "v1", 2_000, 2_000, 0.0, np.nan),
+            ("B", "v1", 9_500, 9_500, 0.0, 9_400.0),
+        ])
+        b = features.attach_vehicle_history(frame).query("trip_id == 'B'")
+        assert b["vehicle_prev_trip_delay"].isna().all()
+
+
 class TestHorizon:
     def test_lags_reach_back_k_stops(self):
         from mbta_ds import clean

@@ -111,8 +111,10 @@ def evaluate_horizon(k: int, *, quick: bool) -> dict:
                for subset, mask in (("all arrivals", np.ones_like(onset)), ("onsets", onset))]
 
     delay = test["delay_seconds"].to_numpy()
-    q = {level: md._fit(md._boost(quick, loss="quantile", quantile=level), train, numeric,
-                        categorical, "delay_seconds").predict(X)
+    # Quantiles of the change since the last stop, shifted by the known delay
+    # there, are quantiles of the delay itself -- without the trees' range cap.
+    q = {level: md._fit(md.ChangeRegressor(md._boost(quick, loss="quantile", quantile=level)),
+                        train, numeric, categorical, "delay_seconds").predict(X)
          for level in QUANTILES}
     days = md.day_type(test)
     ranges = [{"horizon_stops": k, "day_type": label,

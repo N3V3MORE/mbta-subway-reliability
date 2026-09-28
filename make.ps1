@@ -19,13 +19,20 @@ param(
                  'cluster', 'figures', 'report', 'test', 'clean', 'distclean')]
     [string]$Target = 'help',
 
-    [int]$Days = 90
+    [int]$Days = 90,
+
+    # Optional last service date, e.g. -End 2026-02-28.
+    [string]$End = '',
+
+    # Optional run name: results go to data\runs\<Run>\ and reports\<Run>\.
+    [string]$Run = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = $PSScriptRoot
 Set-Location $repoRoot
 $env:PYTHONPATH = Join-Path $repoRoot 'src'
+if ($Run) { $env:MBTA_RUN = $Run }
 $python = 'python'
 
 function Invoke-Step {
@@ -71,7 +78,8 @@ Targets:
         Invoke-Step 'installing requirements' @('-m', 'pip', 'install', '-r', 'requirements.txt')
     }
     'data' {
-        Invoke-Step "collecting $Days days of MBTA data" @('-m', 'mbta_ds.cli', 'collect', '--days', "$Days")
+        $collect = @('-m', 'mbta_ds.cli', 'collect', '--days', "$Days") + $(if ($End) { @('--end', $End) } else { @() })
+        Invoke-Step "collecting $Days days of MBTA data" $collect
         Invoke-Step 'cleaning' @('-m', 'mbta_ds.cli', 'clean', '--refresh')
         Invoke-Step 'extracting features' @('-m', 'mbta_ds.cli', 'features', '--refresh')
         Invoke-Step 'validating data' @('-m', 'mbta_ds.cli', 'validate')
@@ -101,7 +109,7 @@ Targets:
     }
     'all' {
         & $PSCommandPath setup
-        & $PSCommandPath data -Days $Days
+        & $PSCommandPath data -Days $Days -End $End
         & $PSCommandPath model
         & $PSCommandPath cluster
         & $PSCommandPath figures

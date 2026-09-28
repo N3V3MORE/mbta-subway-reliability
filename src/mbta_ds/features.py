@@ -109,7 +109,16 @@ FEATURE_GROUPS: dict[str, tuple[str, ...]] = {
         "line_late_share_15m",
         "line_arrivals_15m",
     ),
+    # How the same physical train finished its previous trip (`attach_vehicle_history`).
+    "vehicle": (
+        "vehicle_prev_trip_delay",
+        "vehicle_layover_seconds",
+    ),
 }
+
+#: A train's previous trip may appear to end up to this long after its next trip
+#: starts (terminal timestamp noise); beyond it, the two cannot be the same train.
+MAX_TRIP_OVERLAP_SECONDS = 300
 CATEGORICAL_GROUP = ("categorical",)
 
 #: Built into the table for diagnostics only; see the note on "calendar" above.
@@ -170,6 +179,39 @@ def add_propagation_features(frame: pd.DataFrame, horizon: int = 1) -> pd.DataFr
     departed = group["move_timestamp"].shift(k - 1) if k > 1 else out["move_timestamp"]
     out["known_at"] = departed.combine_first(group["stop_timestamp"].shift(k))
     return out
+
+
+def attach_vehicle_history(frame: pd.DataFrame) -> pd.DataFrame:
+    """Add how the same physical train finished its previous trip that day.
+
+    A train that reaches its terminal late tends to leave late again; the MBTA's
+    own predictions for trains not yet started are built the same way. For each
+    run, the vehicle's previous run on the service date gives:
+
+    * ``vehicle_prev_trip_delay`` -- its delay at its final stop;
+    * ``vehicle_layover_seconds`` -- this run's scheduled start minus when the
+      previous run actually ended (negative: it could not leave on time).
+
+    A row only sees the previous run if that run had ended before the row's
+    ``known_at``, so nothing from the future is used, at any horizon.
+    """
+    key = clean.RUN_KEY if "run" in frame else clean.TRIP_KEY
+    runs = (frame.groupby(key, sort=False)
+            .agg(vehicle_id=("vehicle_id", "first"), start_sched=("scheduled_epoch", "min"),
+                 start_ts=("stop_timestamp", "min"), end_ts=("stop_timestamp", "max"),
+                 end_delay=("delay_seconds", "last"))
+            .reset_index().sort_values(["service_date", "vehicle_id", "start_ts"]))
+    prev = runs.groupby(["service_date", "vehicle_id"], sort=False)[["end_ts", "end_delay"]].shift()
+    same_train = prev["end_ts"] <= runs["start_ts"] + MAX_TRIP_OVERLAP_SECONDS
+    runs["_prev_end"] = prev["end_ts"].where(same_train)
+    runs["vehicle_prev_trip_delay"] = prev["end_delay"].where(same_train)
+    runs["vehicle_layover_seconds"] = runs["start_sched"] - runs["_prev_end"]
+
+    out = frame.merge(runs[key + ["_prev_end", "vehicle_prev_trip_delay", "vehicle_layover_seconds"]],
+                      on=key, how="left", validate="many_to_one")
+    unknown = ~(out["_prev_end"] < out["known_at"])
+    out.loc[unknown, ["vehicle_prev_trip_delay", "vehicle_layover_seconds"]] = np.nan
+    return out.drop(columns="_prev_end")
 
 
 def attach_network(frame: pd.DataFrame) -> pd.DataFrame:
@@ -504,8 +546,8 @@ def build(
         frame = add_propagation_features(frame, horizon=horizon)
         progress.step("delay-propagation lags", extra=f"{len(frame):,} rows")
 
-        # Needs every train's arrivals as events, so it runs before any filtering.
-        frame = attach_network(frame)
+        # Both need every train's rows, so they run before any filtering.
+        frame = attach_network(attach_vehicle_history(frame))
         progress.step("other trains on the line")
 
         # Scheduled elapsed time is measured from the trip's first scheduled stop.

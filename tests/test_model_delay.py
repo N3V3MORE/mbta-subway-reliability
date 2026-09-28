@@ -65,6 +65,8 @@ def _toy_frame(dates=range(8), rows_per_date=40, seed=0) -> pd.DataFrame:
                     "leader_age_seconds": 300.0,
                     "line_late_share_15m": 0.1,
                     "line_arrivals_15m": 12.0,
+                    "vehicle_prev_trip_delay": previous,
+                    "vehicle_layover_seconds": 240.0,
                 })
     frame = pd.DataFrame(records)
     for column in ("station_name", "route_id", "trunk_route_id", "direction_id"):
@@ -159,6 +161,32 @@ class TestBaselines:
         labels = model.predict(frame.iloc[:4])
         # NaN (unknown) is treated as "not late" rather than crashing.
         assert list(labels) == [0, 1, 0, 1]
+
+
+class TestChangeRegressor:
+    """Predicting the change since the last stop must not cap large delays."""
+
+    def test_predicts_beyond_the_training_range(self):
+        train = _toy_frame()
+        test = _toy_frame(dates=[20], seed=1)
+        # A train logged hours late at its last stop: far outside anything the
+        # training rows contain.
+        test["prev_delay_1"] = test["prev_delay_1"] + 16_000
+        test["delay_seconds"] = test["delay_seconds"] + 16_000
+        numeric, categorical = model_delay._columns(train)
+        cols = numeric + categorical
+
+        absolute = model_delay._fit(model_delay._boost(True, loss="absolute_error"), train,
+                                    numeric, categorical, "delay_seconds")
+        change = model_delay._fit(model_delay._change_boost(True), train,
+                                  numeric, categorical, "delay_seconds")
+        y = test["delay_seconds"].to_numpy()
+        assert np.abs(absolute.predict(test[cols]) - y).mean() > 10_000
+        assert np.abs(change.predict(test[cols]) - y).mean() < 200
+
+    def test_is_listed_as_a_regression_candidate(self):
+        models = model_delay.regression_models(quick=True)
+        assert isinstance(models["hist_gradient_boosting_change"], model_delay.ChangeRegressor)
 
 
 class TestPipeline:

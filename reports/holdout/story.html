@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Will My Train Be Late?</title>
+<script src="https://cdn.plot.ly/plotly-3.7.0.min.js"></script>
+<style>
+:root{color-scheme:light;--page:#f9f9f7;--surface:#fcfcfb;--text:#0b0b0b;--text2:#52514e;
+--muted:#898781;--line:rgba(11,11,11,.10);--accent:#2a78d6}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+--page:#0d0d0d;--surface:#1a1a19;--text:#fff;--text2:#c3c2b7;--line:rgba(255,255,255,.10);--accent:#3987e5}}
+:root[data-theme="dark"]{color-scheme:dark;--page:#0d0d0d;--surface:#1a1a19;--text:#fff;
+--text2:#c3c2b7;--line:rgba(255,255,255,.10);--accent:#3987e5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--text);font:16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif}
+main{max-width:860px;margin:0 auto;padding:40px 16px 80px}
+h1{font-size:2rem;line-height:1.2;margin:0 0 12px;letter-spacing:-.01em}
+.lede{color:var(--text2);font-size:1.1rem;margin:0 0 28px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:0 0 40px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+.tile .v{font-size:clamp(1.3rem,3.2vw,1.7rem);white-space:nowrap;font-weight:600;line-height:1.1}
+.tile .l{color:var(--text2);font-size:.9rem;margin-top:6px}
+section{background:var(--surface);border:1px solid var(--line);border-radius:14px;
+padding:22px 20px 14px;margin:0 0 20px}
+.q{color:var(--muted);font-size:.8rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin:0}
+h2{font-size:1.3rem;line-height:1.3;margin:4px 0 6px}
+.why{color:var(--text2);margin:0 0 12px}
+details{margin:6px 0 4px;color:var(--text2);font-size:.9rem}
+summary{cursor:pointer;color:var(--accent)}
+table{border-collapse:collapse;margin-top:8px;font-variant-numeric:tabular-nums;width:100%}
+th,td{border-bottom:1px solid var(--line);padding:4px 8px;text-align:right}
+th:first-child,td:first-child{text-align:left}
+.table-wrap{overflow-x:auto}
+footer{color:var(--muted);font-size:.85rem;margin-top:32px}
+footer a{color:var(--accent)}
+</style></head>
+<body><main>
+<h1>Will my train be late?</h1>
+<p class="lede">What 2.7 million MBTA subway arrivals say about when the T
+runs late, and how well it can be predicted. No maths required: every chart answers one
+question, and you can hover over it for exact values.</p>
+<div class="tiles"><div class='tile'><div class='v'>2.7M</div><div class='l'>train arrivals studied, 01 Jul – 27 Sep 2026</div></div><div class='tile'><div class='v'>76%</div><div class='l'>of arrivals are less than 5 minutes late</div></div><div class='tile'><div class='v'>19 seconds</div><div class='l'>average error when predicting a train&#x27;s delay at its next stop</div></div><div class='tile'><div class='v'>3× better</div><div class='l'>than assuming a train stays as late as it is (52 s)</div></div></div>
+<section><p class='q'>How late do trains run?</p><h2>Most arrivals are close to on time; the Red line is late most often</h2><p class='why'>Each bar is one line's arrivals, split by how late they were against the timetable. The stronger the blue, the later. The Mattapan line keeps closest to schedule.</p><div style="height:394px; width:100%;">                            <div id="02752cba-b902-4a38-bd21-1a8b1854abcb" class="plotly-graph-div" style="height:100%; width:100%;"></div>            <script>                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById("02752cba-b902-4a38-bd21-1a8b1854abcb")) {                    Plotly.newPlot(                        "02752cba-b902-4a38-bd21-1a8b1854abcb",                        [{"hovertemplate":"%{y}: %{x:.0f}% on time (under 1 min late)\u003cextra\u003e\u003c\u002fextra\u003e","marker":{"color":"#86b6ef","line":{"color":"#fcfcfb","width":2}},"meta":{"theme":{"light":{"marker.color":["#86b6ef"],"marker.line.color":["#fcfcfb"]},"dark":{"marker.color":["#184f95"],"marker.line.color":["#1a1a19"]}}},"name":"On time (under 1 min late)","orientation":"h","x":{"dtype":"f8","bdata":"m5s5dZeYVEDvRTknD31KQB2QN57xy05AbxI1k9+zSUDvRm5plCBHQJc3H2yffURARDaVAD8iQ0ALjuEtdA44QA=="},"y":["Mattapan","Orange","Green-E","Green-B","Green-C","Green-D","Blue","Red"],"type":"bar"},{"hovertemplate":"%{y}: %{x:.0f}% 1-5 min late\u003cextra\u003e\u003c\u002fextra\u003e","marker":{"color":"#3987e5","line":{"color":"#fcfcfb","width":2}},"meta":{"theme":{"light":{"marker.color":["#3987e5"],"marker.line.color":["#fcfcfb"]},"dark":{"marker.color":["#2a78d6"],"marker.line.color":["#1a1a19"]}}},"name":"1-5 min late","orientation":"h","x":{"dtype":"f8","bdata":"CqelmgUwKUCJtxIc8Z1AQBrah429hTdALye595gWPEC1wAtxhJ0\u002fQPoqKL5+Xz9A7r1luPxPOUAEq86ubq1AQA=="},"y":["Mattapan","Orange","Green-E","Green-B","Green-C","Green-D","Blue","Red"],"type":"bar"},{"hovertemplate":"%{y}: %{x:.0f}% 5-10 min late\u003cextra\u003e\u003c\u002fextra\u003e","marker":{"color":"#1c5cab","line":{"color":"#fcfcfb","width":2}},"meta":{"theme":{"light":{"marker.color":["#1c5cab"],"marker.line.color":["#fcfcfb"]},"dark":{"marker.color":["#6da7ec"],"marker.line.color":["#1a1a19"]}}},"name":"5-10 min late","orientation":"h","x":{"dtype":"f8","bdata":"Qxw9s7tGDUDDZX3BPUghQGFgd5ifxSRANevCy0tXK0CchISXcv8uQKQCCzAHwzFAK3ArQtsSK0BpFwdCH2I2QA=="},"y":["Mattapan","Orange","Green-E","Green-B","Green-C","Green-D","Blue","Red"],"type":"bar"},{"hovertemplate":"%{y}: %{x:.0f}% 10+ min late\u003cextra\u003e\u003c\u002fextra\u003e","marker":{"color":"#0d366b","line":{"color":"#fcfcfb","width":2}},"meta":{"theme":{"light":{"marker.color":["#0d366b"],"marker.line.color":["#fcfcfb"]},"dark":{"marker.color":["#b7d3f6"],"marker.line.color":["#1a1a19"]}}},"name":"10+ min late","orientation":"h","x":{"dtype":"f8","bdata":"cKjxdX7M9T+9SKVigpcUQPBVNac9\u002fhFAZvns7wdYG0B\u002fvFXBZYYaQGXGHHN2xCNAcx1apRfiNkCEBHoyjzQ0QA=="},"y":["Mattapan","Orange","Green-E","Green-B","Green-C","Green-D","Blue","Red"],"type":"bar"}],                        {"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermap":[{"type":"scattermap","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermapbox":[{"type":"scattermapbox","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05},"mapbox":{"style":"light"}}},"font":{"family":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif","size":13,"color":"#52514e"},"hoverlabel":{"font":{"family":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"}},"legend":{"font":{"color":"#52514e"},"orientation":"h","yanchor":"bottom","y":1.02,"x":0,"title":{},"traceorder":"normal"},"margin":{"l":8,"r":16,"t":40,"b":8},"height":394,"paper_bgcolor":"rgba(0,0,0,0)","plot_bgcolor":"rgba(0,0,0,0)","barmode":"stack","bargap":0.35,"xaxis":{"tickfont":{"color":"#898781","size":12},"title":{"text":"Share of arrivals"},"gridcolor":"#e1e0d9","linecolor":"#c3c2b7","zeroline":false,"ticklabelstandoff":8,"range":[0,100],"ticksuffix":"%"},"yaxis":{"tickfont":{"color":"#898781","size":12},"title":{"font":{"color":"#52514e"}},"gridcolor":"#e1e0d9","linecolor":"#c3c2b7","zeroline":false,"ticklabelstandoff":8}},                        {"displayModeBar": false, "responsive": true}                    )                };            </script>        </div><details><summary>Show the numbers</summary><div class='table-wrap'><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>delay_seconds</th>
+      <th>On time (under 1 min late)</th>
+      <th>1-5 min late</th>
+      <th>5-10 min late</th>
+      <th>10+ min late</th>
+    </tr>
+    <tr>
+      <th>route_id</th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>Mattapan</th>
+      <td>82%</td>
+      <td>13%</td>
+      <td>4%</td>
+      <td>1%</td>
+    </tr>
+    <tr>
+      <th>Orange</th>
+      <td>53%</td>
+      <td>33%</td>
+      <td>9%</td>
+      <td>5%</td>
+    </tr>
+    <tr>
+      <th>Green-E</th>
+      <td>62%</td>
+      <td>24%</td>
+      <td>10%</td>
+      <td>4%</td>
+    </tr>
+    <tr>
+      <th>Green-B</th>
+      <td>51%</td>
+      <td>28%</td>
+      <td>14%</td>
+      <td>7%</td>
+    </tr>
+    <tr>
+      <th>Green-C</th>
+      <td>46%</td>
+      <td>32%</td>
+      <td>15%</td>
+      <td>7%</td>
+    </tr>
+    <tr>
+      <th>Green-D</th>
+      <td>41%</td>
+      <td>31%</td>
+      <td>18%</td>
+      <td>10%</td>
+    </tr>
+    <tr>
+      <th>Blue</th>
+      <td>38%</td>
+      <td>25%</td>
+      <td>14%</td>
+      <td>23%</td>
+    </tr>
+    <tr>
+      <th>Red</th>
+      <td>24%</td>
+      <td>33%</td>
+      <td>22%</td>
+      <td>20%</td>
+    </tr>
+  </tbody>
+</table></div></details></section><section><p class='q'>When is it worst?</p><h2>Red and Blue run late at every hour; the single worst hour is 6pm on the Red line</h2><p class='why'>Each square is one line in one hour of the day, shaded by the share of trains arriving 5 or more minutes late. The stronger the blue, the more late trains; blank squares had too few trains to say.</p><div style="height:332px; width:100%;">                            <div id="6733e7d1-8efc-4872-ad74-3e39b9fd61b9" class="plotly-graph-div" style="height:100%; width:100%;"></div>            <script>                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById("6733e7d1-8efc-4872-ad74-3e39b9fd61b9")) {                    Plotly.newPlot(                        "6733e7d1-8efc-4872-ad74-3e39b9fd61b9",                        [{"colorbar":{"outlinewidth":0,"thickness":10,"tickfont":{"color":"#898781"},"ticksuffix":"%"},"colorscale":[[0,"#e6f0fc"],[0.5,"#3987e5"],[1,"#0d366b"]],"hoverongaps":false,"hovertemplate":"%{y}, %{x}: %{z:.0f}% of arrivals 5+ min late\u003cextra\u003e\u003c\u002fextra\u003e","meta":{"theme":{"light":{"colorscale":[[[0,"#e6f0fc"],[0.5,"#3987e5"],[1,"#0d366b"]]],"colorbar.tickfont.color":["#898781"]},"dark":{"colorscale":[[[0,"#1f2a38"],[0.5,"#2a78d6"],[1,"#cde2fb"]]],"colorbar.tickfont.color":["#898781"]}}},"x":["5am","6am","7am","8am","9am","10am","11am","12pm","1pm","2pm","3pm","4pm","5pm","6pm","7pm","8pm","9pm","10pm","11pm","12am","1am"],"xgap":2,"y":["Red","Blue","Green-D","Green-C","Green-B","Green-E","Orange","Mattapan"],"ygap":2,"z":{"dtype":"f8","bdata":"OugHGd2uIEAgvz8KRXswQNUeSO2B1DZA6QwR6XIZQ0DkuG91vOBEQMh\u002feGOT4EdAfFRZV5LuSUAK2pCXSLRMQGLXh7xN20lA+KnQIn9YR0CDRfz4dAdGQGohU1HqaEZAJQoXBY33SkDIdTT5PMpNQESkrLe5d0xAz+CpoL3WSECsWqChH3dEQL+JzBPNrkFA6muUVHJLPUB2evQKqqU8QAjrN8BUczpAdtNMTqMeJECscRA4oMowQHVwLhmdzDdAxNCtOPy7P0Dijrgj7jhDQJSqLQaxVUtA2ar+b6ZRTUDO\u002fu5\u002fG4dDQNO43TNGDEFANU3HbiYzQkCEGX3LO\u002fdAQJaNctqQAUZAYBiY5poESUB\u002fw0pZdrBKQBmGVK93dUlAY74rOIX8REBAdkiTqSZAQHoYJnkAsjlAEdfgMJDcOUAU\u002fSEsw24zQFpf8M3hcylA\u002fSg\u002fyo\u002fyI0BLnQ1oZP8tQO1nNU2OdDNAgaeNCW5gNUAclUrwshs2QDulHXQcHTlAh6Rr3fnAOkDNpCAHqSw8QMs8W8LO9j1AiOhxAalRPUDn0OfXG0lBQLAPL42n9kFAn3FDdLvZQEC+LEogjd5AQJVp40JjgEBAGcarMKZzPECsBh1fViw6QOy9Yqw\u002fZj9AZTAhjld1PkAiyeC4wv49QIEEk50ZizVA6fGT7jY\u002fGEAIXQ30GoQrQFmlo+3aCCNANT++1p+5MUBLrcVLrcU3QL55ADmEszdA88gXHzNuNkDjDOJZ+LkzQLEmLRw7FjZAlCUC2XB1NUDLgsYHI\u002fw3QJTvqqNgLzhABpzdaYH9OEB2Ya4fnPc4QIBbCGE50TdAkvkgQZxWO0BTYQb6HfA2QEnEO2cP7DlAuh5tx49EQEDVjSyw+fU5QG3KxaZcbDZAVcKDK8l1E0DerIn0W6glQJMNhxaFih1A0FvJH+ZIKUCFqLTCbjwzQLZt8E3B1DZAarl5MOMwNEBqj5cMb682QBGPVLUNkDRASZ4oqBaGM0D1ouXpbNc2QGX8dqkn7zRAopfDrlpJOkBypSsQr+E5QDA7roIU\u002fzdAYKDoLFnQNEARiFHV1j02QCjNStvnjz1A+dWDBXkIOUCN+ij2VHs4QMkmm2yyyTJAcYnfJ1oDH0AeVBW6+X0jQF1u0+pheCFAFkNhq5BMJkA01ofG+lAsQJIEtT+f\u002fy1AlxDwPId6K0A6RKLwsX0rQNrZbR4PvylAqUDGUyzyKkDkLoih0psvQJNXdELJgzBAeprUTr4WNkCThHE9QWc3QHETPxhmhzNAhO7b0AZ6KEDiPf6XkGUrQHM62SXhzjJAacavQOKTMEDwYZffwy4vQN6f17vy5SBAtDvbt9X5GEA1JH25ND8lQMo04euEiSVAFPRTw4KKKkDvjXWhKXksQCzYxdHUjChA2YcA2CaQJkBr5IWymMsiQF0kRVaxWCFAmTE0UzUsK0Cp76aeXq8xQNiPc9SL1TVAfNj6NmCIOUBQRK92XO4yQASrvmPO5zBACpFX1Xz9K0D3NMJyTyMoQFcTYQXkmCdAni31Aoe4JUCE4U\u002fsSMMhQMVm8BaxGRxAAaanmZBdB0B4Vn9n9XcGQAh1UAd1UBdA2U+94smEFECoxqiYvb8cQHkFM\u002fuesBpAhzWlb81kEUCc6rztbyAXQMecKu6oGhNA3MOhFzctEkBdUwIFvOMRQGr7SMlXshRA01ihihxCG0ByClx88BwaQIXZRYnIPxBApxydfltpEkBXM6AJzqEWQHuy0NI\u002fTBRAd0Rk0AynBkAGinnhlCP+P69Bi9g1aBFA","shape":"8, 21"},"zmin":0,"type":"heatmap"}],                        {"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermap":[{"type":"scattermap","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermapbox":[{"type":"scattermapbox","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05},"mapbox":{"style":"light"}}},"font":{"family":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif","size":13,"color":"#52514e"},"hoverlabel":{"font":{"family":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"}},"legend":{"font":{"color":"#52514e"},"orientation":"h","yanchor":"bottom","y":1.02,"x":0,"title":{},"traceorder":"normal"},"margin":{"l":8,"r":16,"t":8,"b":8},"height":332,"paper_bgcolor":"rgba(0,0,0,0)","plot_bgcolor":"rgba(0,0,0,0)","xaxis":{"tickfont":{"color":"#898781","size":12},"title":{"text":"Scheduled hour"},"gridcolor":"#e1e0d9","linecolor":"#c3c2b7","zeroline":false,"ticklabelstandoff":8,"showgrid":false},"yaxis":{"tickfont":{"color":"#898781","size":12},"title":{"font":{"color":"#52514e"}},"gridcolor":"#e1e0d9","linecolor":"#c3c2b7","zeroline":false,"ticklabelstandoff":8,"showgrid":false,"autorange":"reversed"}},                        {"displayModeBar": false, "responsive": true}                    )                };            </script>        </div><details><summary>Show the numbers</summary><div class='table-wrap'><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>scheduled_hour</th>
+      <th>5:00</th>
+      <th>6:00</th>
+      <th>7:00</th>
+      <th>8:00</th>
+      <th>9:00</th>
+      <th>10:00</th>
+      <th>11:00</th>
+      <th>12:00</th>
+      <th>13:00</th>
+      <th>14:00</th>
+      <th>15:00</th>
+      <th>16:00</th>
+      <th>17:00</th>
+      <th>18:00</th>
+      <th>19:00</th>
+      <th>20:00</th>
+      <th>21:00</th>
+      <th>22:00</th>
+      <th>23:00</th>
+      <th>0:00</th>
+      <th>1:00</th>
+    </tr>
+    <tr>
+      <th>route_id</th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>Red</th>
+      <td>8.0</td>
+      <td>16.0</td>
+      <td>23.0</td>
+      <td>38.0</td>
+      <td>42.0</td>
+      <td>48.0</td>
+      <td>52.0</td>
+      <td>57.0</td>
+      <td>52.0</td>
+      <td>47.0</td>
+      <td>44.0</td>
+      <td>45.0</td>
+      <td>54.0</td>
+      <td>60.0</td>
+      <td>57.0</td>
+      <td>50.0</td>
+      <td>41.0</td>
+      <td>35.0</td>
+      <td>29.0</td>
+      <td>29.0</td>
+      <td>26.0</td>
+    </tr>
+    <tr>
+      <th>Blue</th>
+      <td>10.0</td>
+      <td>17.0</td>
+      <td>24.0</td>
+      <td>32.0</td>
+      <td>38.0</td>
+      <td>55.0</td>
+      <td>59.0</td>
+      <td>39.0</td>
+      <td>34.0</td>
+      <td>36.0</td>
+      <td>34.0</td>
+      <td>44.0</td>
+      <td>50.0</td>
+      <td>53.0</td>
+      <td>51.0</td>
+      <td>42.0</td>
+      <td>32.0</td>
+      <td>26.0</td>
+      <td>26.0</td>
+      <td>19.0</td>
+      <td>13.0</td>
+    </tr>
+    <tr>
+      <th>Green-D</th>
+      <td>10.0</td>
+      <td>15.0</td>
+      <td>19.0</td>
+      <td>21.0</td>
+      <td>22.0</td>
+      <td>25.0</td>
+      <td>27.0</td>
+      <td>28.0</td>
+      <td>30.0</td>
+      <td>29.0</td>
+      <td>35.0</td>
+      <td>36.0</td>
+      <td>34.0</td>
+      <td>34.0</td>
+      <td>33.0</td>
+      <td>28.0</td>
+      <td>26.0</td>
+      <td>31.0</td>
+      <td>30.0</td>
+      <td>30.0</td>
+      <td>22.0</td>
+    </tr>
+    <tr>
+      <th>Green-C</th>
+      <td>6.0</td>
+      <td>14.0</td>
+      <td>10.0</td>
+      <td>18.0</td>
+      <td>24.0</td>
+      <td>24.0</td>
+      <td>22.0</td>
+      <td>20.0</td>
+      <td>22.0</td>
+      <td>21.0</td>
+      <td>24.0</td>
+      <td>24.0</td>
+      <td>25.0</td>
+      <td>25.0</td>
+      <td>24.0</td>
+      <td>27.0</td>
+      <td>23.0</td>
+      <td>26.0</td>
+      <td>33.0</td>
+      <td>26.0</td>
+      <td>22.0</td>
+    </tr>
+    <tr>
+      <th>Green-B</th>
+      <td>5.0</td>
+      <td>11.0</td>
+      <td>7.0</td>
+      <td>13.0</td>
+      <td>19.0</td>
+      <td>23.0</td>
+      <td>20.0</td>
+      <td>23.0</td>
+      <td>21.0</td>
+      <td>20.0</td>
+      <td>23.0</td>
+      <td>21.0</td>
+      <td>26.0</td>
+      <td>26.0</td>
+      <td>24.0</td>
+      <td>21.0</td>
+      <td>22.0</td>
+      <td>30.0</td>
+      <td>25.0</td>
+      <td>24.0</td>
+      <td>19.0</td>
+    </tr>
+    <tr>
+      <th>Green-E</th>
+      <td>8.0</td>
+      <td>10.0</td>
+      <td>9.0</td>
+      <td>11.0</td>
+      <td>14.0</td>
+      <td>15.0</td>
+      <td>14.0</td>
+      <td>14.0</td>
+      <td>13.0</td>
+      <td>13.0</td>
+      <td>16.0</td>
+      <td>17.0</td>
+      <td>22.0</td>
+      <td>23.0</td>
+      <td>20.0</td>
+      <td>12.0</td>
+      <td>14.0</td>
+      <td>19.0</td>
+      <td>17.0</td>
+      <td>16.0</td>
+      <td>8.0</td>
+    </tr>
+    <tr>
+      <th>Orange</th>
+      <td>6.0</td>
+      <td>11.0</td>
+      <td>11.0</td>
+      <td>13.0</td>
+      <td>14.0</td>
+      <td>12.0</td>
+      <td>11.0</td>
+      <td>9.0</td>
+      <td>9.0</td>
+      <td>14.0</td>
+      <td>18.0</td>
+      <td>22.0</td>
+      <td>26.0</td>
+      <td>19.0</td>
+      <td>17.0</td>
+      <td>14.0</td>
+      <td>12.0</td>
+      <td>12.0</td>
+      <td>11.0</td>
+      <td>9.0</td>
+      <td>7.0</td>
+    </tr>
+    <tr>
+      <th>Mattapan</th>
+      <td>3.0</td>
+      <td>3.0</td>
+      <td>6.0</td>
+      <td>5.0</td>
+      <td>7.0</td>
+      <td>7.0</td>
+      <td>4.0</td>
+      <td>6.0</td>
+      <td>5.0</td>
+      <td>5.0</td>
+      <td>4.0</td>
+      <td>5.0</td>
+      <td>7.0</td>
+      <td>7.0</td>
+      <td>4.0</td>
+      <td>5.0</td>
+      <td>6.0</td>
+      <td>5.0</td>
+      <td>3.0</td>
+      <td>2.0</td>
+      <td>4.0</td>
+    </tr>
+  </tbody>
+</table></div></details></section><section><p class='q'>Why can delays be predicted at all?</p><h2>A late train stays late: its delay barely changes from one stop to the next</h2><p class='why'>Real Orange Line trains from the week ending 27 September, end to end: one that ran nearly on time, one about 5 minutes late and one about 10. The lines are mostly flat. The one big step, 4 minutes at Forest Hills, is the kind of sudden change nothing upstream warns about. That is the pattern the model learns: start from how late the train is now, then predict the small change to the next stop.</p><div style="height:400px; width:100%;">                            <div id="426abbae-fc74-40a7-a84f-0b5328d40b27" class="plotly-graph-div" style="height:100%; width:100%;"></div>            <script>                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById("426abbae-fc74-40a7-a84f-0b5328d40b27")) {                    Plotly.newPlot(                        "426abbae-fc74-40a7-a84f-0b5328d40b27",                        [{"hovertemplate":"%{x}: %{y:.1f} min late\u003cextra\u003eTue 22 Sep, 3:31 PM\u003c\u002fextra\u003e","line":{"color":"#2a78d6","width":2},"marker":{"color":"#2a78d6","line":{"color":"#fcfcfb","width":2},"size":8},"meta":{"theme":{"light":{"line.color":["#2a78d6"],"marker.color":["#2a78d6"],"marker.line.color":["#fcfcfb"]},"dark":{"line.color":["#3987e5"],"marker.color":["#3987e5"],"marker.line.color":["#1a1a19"]}}},"mode":"lines+markers","name":"Tue 22 Sep, 3:31 PM","x":["Malden Center","Wellington","Assembly","Sullivan Square","Community College","North Station","Haymarket","State","Downtown Crossing","Chinatown","Tufts Medical Center","Back Bay","Massachusetts Avenue","Ruggles","Roxbury Crossing","Jackson Square","Stony Brook","Green Street","Forest Hills"],"y":{"dtype":"f8","bdata":"3t3d3d3d7T8zMzMzMzPrPwAAAAAAAOA\u002f3t3d3d3dzT9ERERERETUP97d3d3d3eU\u002fiYiIiIiI8D+rqqqqqqriPyIiIiIiItK\u002fmpmZmZmZqT8AAAAAAADQP5qZmZmZmck\u002fMzMzMzMz4z9ERERERETwPyIiIiIiIuo\u002fAAAAAAAA4D9VVVVVVVW1P0REREREROQ\u002fiYiIiIiI4D8="},"type":"scatter"},{"hovertemplate":"%{x}: %{y:.1f} min late\u003cextra\u003eTue 22 Sep, 7:08 AM\u003c\u002fextra\u003e","line":{"color":"#eb6834","width":2},"marker":{"color":"#eb6834","line":{"color":"#fcfcfb","width":2},"size":8},"meta":{"theme":{"light":{"line.color":["#eb6834"],"marker.color":["#eb6834"],"marker.line.color":["#fcfcfb"]},"dark":{"line.color":["#d95926"],"marker.color":["#d95926"],"marker.line.color":["#1a1a19"]}}},"mode":"lines+markers","name":"Tue 22 Sep, 7:08 AM","x":["Malden Center","Wellington","Assembly","Sullivan Square","Community College","North Station","Haymarket","State","Downtown Crossing","Chinatown","Tufts Medical Center","Back Bay","Massachusetts Avenue","Ruggles","Roxbury Crossing","Jackson Square","Stony Brook","Green Street","Forest Hills"],"y":{"dtype":"f8","bdata":"vLu7u7u7CUBEREREREQIQO\u002fu7u7u7gZAd3d3d3d3A0CJiIiIiIgEQERERERERAZAvLu7u7u7CUBmZmZmZmYGQJqZmZmZmQFAmpmZmZmZBUAiIiIiIiIGQJqZmZmZmQVAMzMzMzMzCUBEREREREQVQM3MzMzMzBNAEREREREREkDv7u7u7u4QQGZmZmZmZhJAREREREREEkA="},"type":"scatter"},{"hovertemplate":"%{x}: %{y:.1f} min late\u003cextra\u003eWed 23 Sep, 7:23 PM\u003c\u002fextra\u003e","line":{"color":"#1baf7a","width":2},"marker":{"color":"#1baf7a","line":{"color":"#fcfcfb","width":2},"size":8},"meta":{"theme":{"light":{"line.color":["#1baf7a"],"marker.color":["#1baf7a"],"marker.line.color":["#fcfcfb"]},"dark":{"line.color":["#199e70"],"marker.color":["#199e70"],"marker.line.color":["#1a1a19"]}}},"mode":"lines+markers","name":"Wed 23 Sep, 7:23 PM","x":["Malden Center","Wellington","Assembly","Sullivan Square","Community College","North Station","Haymarket","State","Downtown Crossing","Chinatown","Tufts Medical Center","Back Bay","Massachusetts Avenue","Ruggles","Roxbury Crossing","Jackson Square","Stony Brook","Green Street","Forest Hills"],"y":{"dtype":"f8","bdata":"vLu7u7u7HkDe3d3d3d0dQFVVVVVVVRxAREREREREG0CJiIiIiIgbQGZmZmZmZhxAmpmZmZmZHUAiIiIiIiIbQGZmZmZmZhtAq6qqqqqqHEAiIiIiIiIdQHd3d3d3dxxAd3d3d3d3HUAzMzMzMzMfQM3MzMzMzB1Ad3d3d3d3HECJiIiIiIgaQImIiIiIiBxAvLu7u7s7JkA="},"type":"scatter"}],                        {"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermap":[{"type":"scattermap","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermapbox":[{"type":"scattermapbox","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05},"mapbox":{"style":"light"}}},"font":{"family":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif","size":13,"color":"#52514e"},"hoverlabel":{"font":{"family":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"}},"legend":{"font":{"color":"#52514e"},"orientation":"h","yanchor":"bottom","y":1.02,"x":0,"title":{},"traceorder":"normal"},"margin":{"l":8,"r":16,"t":40,"b":8},"height":400,"paper_bgcolor":"rgba(0,0,0,0)","plot_bgcolor":"rgba(0,0,0,0)","xaxis":{"tickfont":{"color":"#898781","size":12},"title":{"font":{"color":"#52514e"}},"gridcolor":"#e1e0d9","linecolor":"#c3c2b7","zeroline":false,"ticklabelstandoff":8,"categoryorder":"array","categoryarray":["Malden Center","Wellington","Assembly","Sullivan Square","Community College","North Station","Haymarket","State","Downtown Crossing","Chinatown","Tufts Medical Center","Back Bay","Massachusetts Avenue","Ruggles","Roxbury Crossing","Jackson Square","Stony Brook","Green Street","Forest Hills"],"tickangle":-45,"showgrid":false},"yaxis":{"tickfont":{"color":"#898781","size":12},"title":{"text":"Minutes late"},"gridcolor":"#e1e0d9","linecolor":"#c3c2b7","zeroline":false,"ticklabelstandoff":8,"range":[-0.7833333333333333,12.116666666666667]}},                        {"displayModeBar": false, "responsive": true}                    )                };            </script>        </div><details><summary>Show the numbers</summary><div class='table-wrap'><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>train</th>
+      <th>Tue 22 Sep, 3:31 PM</th>
+      <th>Tue 22 Sep, 7:08 AM</th>
+      <th>Wed 23 Sep, 7:23 PM</th>
+    </tr>
+    <tr>
+      <th>station</th>
+      <th></th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>Malden Center</th>
+      <td>0.9</td>
+      <td>3.2</td>
+      <td>7.7</td>
+    </tr>
+    <tr>
+      <th>Wellington</th>
+      <td>0.8</td>
+      <td>3.0</td>
+      <td>7.5</td>
+    </tr>
+    <tr>
+      <th>Assembly</th>
+      <td>0.5</td>
+      <td>2.9</td>
+      <td>7.1</td>
+    </tr>
+    <tr>
+      <th>Sullivan Square</th>
+      <td>0.2</td>
+      <td>2.4</td>
+      <td>6.8</td>
+    </tr>
+    <tr>
+      <th>Community College</th>
+      <td>0.3</td>
+      <td>2.6</td>
+      <td>6.9</td>
+    </tr>
+    <tr>
+      <th>North Station</th>
+      <td>0.7</td>
+      <td>2.8</td>
+      <td>7.1</td>
+    </tr>
+    <tr>
+      <th>Haymarket</th>
+      <td>1.0</td>
+      <td>3.2</td>
+      <td>7.4</td>
+    </tr>
+    <tr>
+      <th>State</th>
+      <td>0.6</td>
+      <td>2.8</td>
+      <td>6.8</td>
+    </tr>
+    <tr>
+      <th>Downtown Crossing</th>
+      <td>-0.3</td>
+      <td>2.2</td>
+      <td>6.8</td>
+    </tr>
+    <tr>
+      <th>Chinatown</th>
+      <td>0.0</td>
+      <td>2.7</td>
+      <td>7.2</td>
+    </tr>
+    <tr>
+      <th>Tufts Medical Center</th>
+      <td>0.2</td>
+      <td>2.8</td>
+      <td>7.3</td>
+    </tr>
+    <tr>
+      <th>Back Bay</th>
+      <td>0.2</td>
+      <td>2.7</td>
+      <td>7.1</td>
+    </tr>
+    <tr>
+      <th>Massachusetts Avenue</th>
+      <td>0.6</td>
+      <td>3.2</td>
+      <td>7.4</td>
+    </tr>
+    <tr>
+      <th>Ruggles</th>
+      <td>1.0</td>
+      <td>5.3</td>
+      <td>7.8</td>
+    </tr>
+    <tr>
+      <th>Roxbury Crossing</th>
+      <td>0.8</td>
+      <td>5.0</td>
+      <td>7.4</td>
+    </tr>
+    <tr>
+      <th>Jackson Square</th>
+      <td>0.5</td>
+      <td>4.5</td>
+      <td>7.1</td>
+    </tr>
+    <tr>
+      <th>Stony Brook</th>
+      <td>0.1</td>
+      <td>4.2</td>
+      <td>6.6</td>
+    </tr>
+    <tr>
+      <th>Green Street</th>
+      <td>0.6</td>
+      <td>4.6</td>
+      <td>7.1</td>
+    </tr>
+    <tr>
+      <th>Forest Hills</th>
+      <td>0.5</td>
+      <td>4.6</td>
+      <td>11.1</td>
+    </tr>
+  </tbody>
+</table></div></details></section><section><p class='q'>How good are the predictions?</p><h2>Our model is off by 19 seconds on average, 3× better than the best rule of thumb</h2><p class='why'>Each bar is a way of guessing how late a train will be at its next stop, scored on the last 23 days of trains, which the model never saw. The two simple averages are wrong by over 4 minutes; "it stays as late as it is" is a good rule, and the model cuts its error by 63%.</p><div style="height:284px; width:100%;">                            <div id="cf4cf7b7-8ee3-45b5-b999-b38f424a450f" class="plotly-graph-div" style="height:100%; width:100%;"></div>            <script>                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById("cf4cf7b7-8ee3-45b5-b999-b38f424a450f")) {                    Plotly.newPlot(                        "cf4cf7b7-8ee3-45b5-b999-b38f424a450f",                        [{"cliponaxis":false,"hovertemplate":"%{y}: wrong by %{x:.1f} seconds on average\u003cextra\u003e\u003c\u002fextra\u003e","marker":{"color":["#c3c2b7","#c3c2b7","#c3c2b7","#2a78d6"]},"meta":{"theme":{"light":{"marker.color":[["#c3c2b7","#c3c2b7","#c3c2b7","#2a78d6"]],"textfont.color":["#0b0b0b"]},"dark":{"marker.color":[["#52514e","#52514e","#52514e","#3987e5"]],"textfont.color":["#ffffff"]}}},"orientation":"h","text":["258 s","274 s","52 s","19 s"],"textfont":{"color":"#0b0b0b"},"textposition":"outside","x":{"dtype":"f8","bdata":"2ZuVovkecEAZvR5quhtxQDlmKdI4DUpAss\u002fQQn1oM0A="},"y":["Assume every train is on time","Use the usual delay for that line and hour","Assume it stays as late as it is now","Our model"],"type":"bar"}],                        {"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermap":[{"type":"scattermap","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermapbox":[{"type":"scattermapbox","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05},"mapbox":{"style":"light"}}},"font":{"family":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif","size":13,"color":"#52514e"},"hoverlabel":{"font":{"family":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"}},"legend":{"font":{"color":"#52514e"},"orientation":"h","yanchor":"bottom","y":1.02,"x":0,"title":{},"traceorder":"normal"},"margin":{"l":8,"r":16,"t":8,"b":8},"height":284,"paper_bgcolor":"rgba(0,0,0,0)","plot_bgcolor":"rgba(0,0,0,0)","bargap":0.62,"showlegend":false,"xaxis":{"tickfont":{"color":"#898781","size":12},"title":{"text":"Average error (seconds)"},"gridcolor":"#e1e0d9","linecolor":"#c3c2b7","zeroline":false,"ticklabelstandoff":8,"range":[0,314.79296306427364]},"yaxis":{"tickfont":{"color":"#898781","size":12},"title":{"font":{"color":"#52514e"}},"gridcolor":"#e1e0d9","linecolor":"#c3c2b7","zeroline":false,"ticklabelstandoff":8,"autorange":"reversed","showticklabels":false,"showgrid":false},"annotations":[{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"Assume every train is on time","x":0,"xanchor":"left","xref":"paper","y":"Assume every train is on time","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"Use the usual delay for that line and hour","x":0,"xanchor":"left","xref":"paper","y":"Use the usual delay for that line and hour","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"Assume it stays as late as it is now","x":0,"xanchor":"left","xref":"paper","y":"Assume it stays as late as it is now","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"Our model","x":0,"xanchor":"left","xref":"paper","y":"Our model","yanchor":"bottom","yref":"y","yshift":8}]},                        {"displayModeBar": false, "responsive": true}                    )                };            </script>        </div><details><summary>Show the numbers</summary><div class='table-wrap'><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>error_seconds</th>
+    </tr>
+    <tr>
+      <th>method</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>Assume every train is on time</th>
+      <td>257.9</td>
+    </tr>
+    <tr>
+      <th>Use the usual delay for that line and hour</th>
+      <td>273.7</td>
+    </tr>
+    <tr>
+      <th>Assume it stays as late as it is now</th>
+      <td>52.1</td>
+    </tr>
+    <tr>
+      <th>Our model</th>
+      <td>19.4</td>
+    </tr>
+  </tbody>
+</table></div></details></section><section><p class='q'>What does the model pay attention to?</p><h2>Overwhelmingly, how late the train already is</h2><p class='why'>Each bar shows how much worse the predictions get if the model is not allowed to see that piece of information. Weather, service alerts and ridership barely register; the train's own recent delay dominates everything.</p><div style="height:396px; width:100%;">                            <div id="59dda6bd-3634-4e8a-a477-3aa5d5248b3a" class="plotly-graph-div" style="height:100%; width:100%;"></div>            <script>                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById("59dda6bd-3634-4e8a-a477-3aa5d5248b3a")) {                    Plotly.newPlot(                        "59dda6bd-3634-4e8a-a477-3aa5d5248b3a",                        [{"cliponaxis":false,"hovertemplate":"Hide \"%{y}\" and predictions get %{x:.0f} s worse\u003cextra\u003e\u003c\u002fextra\u003e","marker":{"color":"#2a78d6"},"meta":{"theme":{"light":{"marker.color":["#2a78d6"],"textfont.color":["#0b0b0b"]},"dark":{"marker.color":["#3987e5"],"textfont.color":["#ffffff"]}}},"orientation":"h","text":["+378 s","+26 s","+24 s","+13 s","+8 s","+3 s"],"textfont":{"color":"#0b0b0b"},"textposition":"outside","x":{"dtype":"f8","bdata":"I3ZCiZ6cd0ATtfAQueE5QPXJ3MP3bDhAUyxuX2vsKUAYf2d1dCgeQLZmBXQmZAVA"},"y":["How late it was at the last stop","How long it waited at the last platform","Which station it is arriving at","How far ahead the prediction is","Scheduled time to the next stop","How long the last stretch took"],"type":"bar"}],                        {"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermap":[{"type":"scattermap","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermapbox":[{"type":"scattermapbox","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05},"mapbox":{"style":"light"}}},"font":{"family":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif","size":13,"color":"#52514e"},"hoverlabel":{"font":{"family":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"}},"legend":{"font":{"color":"#52514e"},"orientation":"h","yanchor":"bottom","y":1.02,"x":0,"title":{},"traceorder":"normal"},"margin":{"l":8,"r":16,"t":8,"b":8},"height":396,"paper_bgcolor":"rgba(0,0,0,0)","plot_bgcolor":"rgba(0,0,0,0)","bargap":0.62,"showlegend":false,"xaxis":{"tickfont":{"color":"#898781","size":12},"title":{"text":"Extra error (seconds)"},"gridcolor":"#e1e0d9","linecolor":"#c3c2b7","zeroline":false,"ticklabelstandoff":8,"range":[0,434.45701088767754]},"yaxis":{"tickfont":{"color":"#898781","size":12},"title":{"font":{"color":"#52514e"}},"gridcolor":"#e1e0d9","linecolor":"#c3c2b7","zeroline":false,"ticklabelstandoff":8,"autorange":"reversed","showticklabels":false,"showgrid":false},"annotations":[{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"How late it was at the last stop","x":0,"xanchor":"left","xref":"paper","y":"How late it was at the last stop","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"How long it waited at the last platform","x":0,"xanchor":"left","xref":"paper","y":"How long it waited at the last platform","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"Which station it is arriving at","x":0,"xanchor":"left","xref":"paper","y":"Which station it is arriving at","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"How far ahead the prediction is","x":0,"xanchor":"left","xref":"paper","y":"How far ahead the prediction is","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"Scheduled time to the next stop","x":0,"xanchor":"left","xref":"paper","y":"Scheduled time to the next stop","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"How long the last stretch took","x":0,"xanchor":"left","xref":"paper","y":"How long the last stretch took","yanchor":"bottom","yref":"y","yshift":8}]},                        {"displayModeBar": false, "responsive": true}                    )                };            </script>        </div><details><summary>Show the numbers</summary><div class='table-wrap'><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>Extra error (s)</th>
+    </tr>
+    <tr>
+      <th>label</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>How late it was at the last stop</th>
+      <td>377.8</td>
+    </tr>
+    <tr>
+      <th>How long it waited at the last platform</th>
+      <td>25.9</td>
+    </tr>
+    <tr>
+      <th>Which station it is arriving at</th>
+      <td>24.4</td>
+    </tr>
+    <tr>
+      <th>How far ahead the prediction is</th>
+      <td>13.0</td>
+    </tr>
+    <tr>
+      <th>Scheduled time to the next stop</th>
+      <td>7.5</td>
+    </tr>
+    <tr>
+      <th>How long the last stretch took</th>
+      <td>2.7</td>
+    </tr>
+  </tbody>
+</table></div></details></section><section><p class='q'>Can it warn about sudden big delays?</p><h2>Sometimes: it flags about 35% of them one stop in advance</h2><p class='why'>The hard case is a train running on time that suddenly ends up 10+ minutes late (a breakdown, a medical emergency). Bars show the share of those the model flags in advance while keeping at least half of its warnings correct. Further ahead, it catches far fewer: most sudden disruptions give no sign in this data.</p><div style="height:300px; width:100%;">                            <div id="97afad7d-6d07-461c-8a94-f946a4d36913" class="plotly-graph-div" style="height:100%; width:100%;"></div>            <script>                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById("97afad7d-6d07-461c-8a94-f946a4d36913")) {                    Plotly.newPlot(                        "97afad7d-6d07-461c-8a94-f946a4d36913",                        [{"cliponaxis":false,"hovertemplate":"%{x}, holdout: %{y:.0f}% flagged\u003cextra\u003e\u003c\u002fextra\u003e","marker":{"color":"#2a78d6"},"meta":{"theme":{"light":{"marker.color":["#2a78d6"],"textfont.color":["#0b0b0b"]},"dark":{"marker.color":["#3987e5"],"textfont.color":["#ffffff"]}}},"name":"Holdout","text":["35%","10%"],"textfont":{"color":"#0b0b0b"},"textposition":"outside","x":["1 stop before","5 stops before"],"y":{"dtype":"f8","bdata":"x\u002frQWB+aQUDjwxWtLz4kQA=="},"type":"bar"}],                        {"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermap":[{"type":"scattermap","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermapbox":[{"type":"scattermapbox","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05},"mapbox":{"style":"light"}}},"font":{"family":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif","size":13,"color":"#52514e"},"hoverlabel":{"font":{"family":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"}},"legend":{"font":{"color":"#52514e"},"orientation":"h","yanchor":"bottom","y":1.02,"x":0,"title":{},"traceorder":"normal"},"margin":{"l":8,"r":16,"t":8,"b":8},"height":300,"paper_bgcolor":"rgba(0,0,0,0)","plot_bgcolor":"rgba(0,0,0,0)","barmode":"group","bargap":0.72,"bargroupgap":0.12,"xaxis":{"tickfont":{"color":"#898781","size":12},"title":{"font":{"color":"#52514e"}},"gridcolor":"#e1e0d9","linecolor":"#c3c2b7","zeroline":false,"ticklabelstandoff":8},"yaxis":{"tickfont":{"color":"#898781","size":12},"title":{"text":"Sudden big delays flagged"},"gridcolor":"#e1e0d9","linecolor":"#c3c2b7","zeroline":false,"ticklabelstandoff":8,"ticksuffix":"%","rangemode":"tozero"}},                        {"displayModeBar": false, "responsive": true}                    )                };            </script>        </div><details><summary>Show the numbers</summary><div class='table-wrap'><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th></th>
+      <th>caught</th>
+      <th>cases</th>
+    </tr>
+    <tr>
+      <th>season</th>
+      <th>stops_ahead</th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th rowspan="2" valign="top">Holdout</th>
+      <th>1</th>
+      <td>0.352</td>
+      <td>980</td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>0.101</td>
+      <td>2964</td>
+    </tr>
+  </tbody>
+</table></div></details></section><section><p class='q'>Which stations see the most late trains?</p><h2>Braintree tops the list</h2><p class='why'>Share of arrivals 5 or more minutes late at each station (stations with at least 2,000 arrivals). A station's figure reflects every line that calls there.</p><div style="height:660px; width:100%;">                            <div id="933dadb9-291a-48d4-8055-0ce03ff2d8db" class="plotly-graph-div" style="height:100%; width:100%;"></div>            <script>                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById("933dadb9-291a-48d4-8055-0ce03ff2d8db")) {                    Plotly.newPlot(                        "933dadb9-291a-48d4-8055-0ce03ff2d8db",                        [{"cliponaxis":false,"hovertemplate":"%{y}: %{x:.0f}% of arrivals 5+ min late\u003cextra\u003e\u003c\u002fextra\u003e","marker":{"color":"#2a78d6"},"meta":{"theme":{"light":{"marker.color":["#2a78d6"],"textfont.color":["#0b0b0b"]},"dark":{"marker.color":["#3987e5"],"textfont.color":["#ffffff"]}}},"orientation":"h","text":["61%","45%","43%","43%","43%","43%","43%","43%","43%","43%","42%","42%"],"textfont":{"color":"#0b0b0b"},"textposition":"outside","x":{"dtype":"f8","bdata":"Jln1K\u002f59TkAM5QB4v1BGQJXf5h8GtUVA3JLXJR2zRUDCZRtChZBFQJ3x8JRlgEVABfbKSu9+RUBS\u002fmq5jWtFQFHbYDk0UUVAtSEuaYlDRUAUGDGExSdFQFuIKslI+URA"},"y":["Braintree","Porter","Charles\u002fMGH","Wonderland","Alewife","Andrew","Kendall\u002fMIT","South Station","Davis","Broadway","Harvard","Wollaston"],"type":"bar"}],                        {"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermap":[{"type":"scattermap","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermapbox":[{"type":"scattermapbox","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05},"mapbox":{"style":"light"}}},"font":{"family":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif","size":13,"color":"#52514e"},"hoverlabel":{"font":{"family":"system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"}},"legend":{"font":{"color":"#52514e"},"orientation":"h","yanchor":"bottom","y":1.02,"x":0,"title":{},"traceorder":"normal"},"margin":{"l":8,"r":16,"t":8,"b":8},"height":660,"paper_bgcolor":"rgba(0,0,0,0)","plot_bgcolor":"rgba(0,0,0,0)","bargap":0.6,"showlegend":false,"xaxis":{"tickfont":{"color":"#898781","size":12},"title":{"text":"Arrivals 5+ min late"},"gridcolor":"#e1e0d9","linecolor":"#c3c2b7","zeroline":false,"ticklabelstandoff":8,"ticksuffix":"%","range":[0,70.13196708585623]},"yaxis":{"tickfont":{"color":"#898781","size":12},"title":{"font":{"color":"#52514e"}},"gridcolor":"#e1e0d9","linecolor":"#c3c2b7","zeroline":false,"ticklabelstandoff":8,"autorange":"reversed","showticklabels":false,"showgrid":false},"annotations":[{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"Braintree","x":0,"xanchor":"left","xref":"paper","y":"Braintree","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"Porter","x":0,"xanchor":"left","xref":"paper","y":"Porter","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"Charles\u002fMGH","x":0,"xanchor":"left","xref":"paper","y":"Charles\u002fMGH","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"Wonderland","x":0,"xanchor":"left","xref":"paper","y":"Wonderland","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"Alewife","x":0,"xanchor":"left","xref":"paper","y":"Alewife","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"Andrew","x":0,"xanchor":"left","xref":"paper","y":"Andrew","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"Kendall\u002fMIT","x":0,"xanchor":"left","xref":"paper","y":"Kendall\u002fMIT","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"South Station","x":0,"xanchor":"left","xref":"paper","y":"South Station","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"Davis","x":0,"xanchor":"left","xref":"paper","y":"Davis","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"Broadway","x":0,"xanchor":"left","xref":"paper","y":"Broadway","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"Harvard","x":0,"xanchor":"left","xref":"paper","y":"Harvard","yanchor":"bottom","yref":"y","yshift":8},{"font":{"color":"#52514e","size":12},"showarrow":false,"text":"Wollaston","x":0,"xanchor":"left","xref":"paper","y":"Wollaston","yanchor":"bottom","yref":"y","yshift":8}]},                        {"displayModeBar": false, "responsive": true}                    )                };            </script>        </div><details><summary>Show the numbers</summary><div class='table-wrap'><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>Late (%)</th>
+      <th>Arrivals</th>
+    </tr>
+    <tr>
+      <th>station_name</th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>Braintree</th>
+      <td>61.0</td>
+      <td>6441</td>
+    </tr>
+    <tr>
+      <th>Porter</th>
+      <td>44.6</td>
+      <td>22890</td>
+    </tr>
+    <tr>
+      <th>Charles/MGH</th>
+      <td>43.4</td>
+      <td>22822</td>
+    </tr>
+    <tr>
+      <th>Wonderland</th>
+      <td>43.4</td>
+      <td>12779</td>
+    </tr>
+    <tr>
+      <th>Alewife</th>
+      <td>43.1</td>
+      <td>10297</td>
+    </tr>
+    <tr>
+      <th>Andrew</th>
+      <td>43.0</td>
+      <td>22903</td>
+    </tr>
+    <tr>
+      <th>Kendall/MIT</th>
+      <td>43.0</td>
+      <td>22830</td>
+    </tr>
+    <tr>
+      <th>South Station</th>
+      <td>42.8</td>
+      <td>22850</td>
+    </tr>
+    <tr>
+      <th>Davis</th>
+      <td>42.6</td>
+      <td>22897</td>
+    </tr>
+    <tr>
+      <th>Broadway</th>
+      <td>42.5</td>
+      <td>22891</td>
+    </tr>
+    <tr>
+      <th>Harvard</th>
+      <td>42.3</td>
+      <td>22902</td>
+    </tr>
+    <tr>
+      <th>Wollaston</th>
+      <td>41.9</td>
+      <td>11779</td>
+    </tr>
+  </tbody>
+</table></div></details></section>
+<footer>Data: MBTA LAMP performance archive, MBTA gated-station entries, Open-Meteo
+weather. Built by <code>python -m mbta_ds.cli story</code>. The full technical results,
+with every table and method, are in <a href="report.html">report.html</a>.</footer>
+</main><script>
+const PAL = {"light": {"text2": "#52514e", "muted": "#898781", "grid": "#e1e0d9", "axis": "#c3c2b7"}, "dark": {"text2": "#c3c2b7", "muted": "#898781", "grid": "#2c2c2a", "axis": "#383835"}};
+function isDark(){const t=document.documentElement.dataset.theme;
+  return t ? t==="dark" : matchMedia("(prefers-color-scheme: dark)").matches;}
+function paint(){const dark=isDark(), p=dark?PAL.dark:PAL.light, mode=dark?"dark":"light";
+  document.querySelectorAll(".js-plotly-plot").forEach(gd=>{
+    const lay={"font.color":p.text2,"legend.font.color":p.text2};
+    Object.keys(gd.layout).filter(k=>/^[xy]axis\d*$/.test(k)).forEach(k=>{
+      lay[k+".gridcolor"]=p.grid; lay[k+".linecolor"]=p.axis;
+      lay[k+".tickfont.color"]=p.muted; lay[k+".title.font.color"]=p.text2;});
+    (gd.layout.annotations||[]).forEach((a,i)=>{lay["annotations["+i+"].font.color"]=p.text2;});
+    Plotly.relayout(gd,lay);
+    gd.data.forEach((tr,i)=>{if(tr.meta&&tr.meta.theme){Plotly.restyle(gd,tr.meta.theme[mode],[i]);}});
+  });}
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",paint);
+new MutationObserver(paint).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+window.addEventListener("load",paint);
+</script></body></html>

@@ -1,6 +1,7 @@
 source,check,value,op,limit,hard,ok
 clean,service dates lost by the pipeline,0.0,==,0.0,True,True
 clean,service dates empty in the source archive,3.0,>=,0.0,False,True
+clean,service dates outside the analysis window,0.0,==,0.0,True,True
 clean,scheduled time runs backwards within a trip,0.0,==,0.0,True,True
 clean,share of arrivals timestamped before the previous stop (flagged),0.0007,<=,0.001,True,True
 clean,"duplicate (service_date, trip_id, stop_id)",0.0,==,0.0,True,True
@@ -12,14 +13,16 @@ clean,share of arrivals more than 1 h off schedule,0.0066,>=,0.0,False,True
 clean,|median arrival delay| in seconds (sanity),68.0,<=,120.0,True,True
 clean,stations left as raw ids (name lookup failed),0.0,==,0.0,True,True
 clean,route-days below 60% of usual volume (shutdowns),82.0,>=,0.0,False,True
+features,service dates outside the analysis window,0.0,==,0.0,True,True
 features,target columns among the features,0.0,==,0.0,True,True
 features,declared features absent from the table,0.0,==,0.0,True,True
 features,fraction_through_trip outside 0..1,0.0,==,0.0,True,True
 features,share of rows without a previous-stop delay,0.0,<=,0.001,True,True
+ridership,window dates missing from ridership,0.0,==,0.0,True,True
 ridership,negative gated entries,0.0,==,0.0,True,True
 ridership,"duplicate (date, stop, line, period)",0.0,==,0.0,True,True
-ridership,service dates covered,90.0,==,90.0,True,True
 ridership,half-hour periods other than :00 / :30,0.0,==,0.0,True,True
+weather,window hours without weather,0.0,==,0.0,True,True
 weather,gaps or repeats in the hourly series,0.0,==,0.0,True,True
 weather,missing values,0.0,==,0.0,True,True
 weather,temperatures outside -30..45 C,0.0,==,0.0,True,True

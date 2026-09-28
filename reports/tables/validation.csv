@@ -1,0 +1,26 @@
+source,check,value,op,limit,hard,ok
+clean,service dates missing inside the window,0.0,==,0.0,True,True
+clean,scheduled time runs backwards within a trip,0.0,==,0.0,True,True
+clean,share of arrivals timestamped before the previous stop (flagged),0.0005,<=,0.001,True,True
+clean,"duplicate (service_date, trip_id, stop_id)",0.0,==,0.0,True,True
+clean,duplicate visits under a second platform id,0.0,==,0.0,True,True
+clean,"negative travel, dwell or headway values",0.0,==,0.0,True,True
+clean,share of rows where travel_time == stop_ts - move_ts,1.0,>=,0.999,True,True
+clean,trips running more than 30 min early on average (mismatched),0.0,==,0.0,True,True
+clean,share of arrivals more than 1 h off schedule,0.0024,<=,0.005,True,True
+clean,|median arrival delay| in seconds (sanity),56.0,<=,120.0,True,True
+clean,stations left as raw ids (name lookup failed),0.0,==,0.0,True,True
+clean,route-days below 60% of usual volume (shutdowns),79.0,>=,0.0,False,True
+features,target columns among the features,0.0,==,0.0,True,True
+features,declared features absent from the table,0.0,==,0.0,True,True
+features,fraction_through_trip outside 0..1,0.0,==,0.0,True,True
+features,share of rows without a previous-stop delay,0.0,<=,0.001,True,True
+ridership,negative gated entries,0.0,==,0.0,True,True
+ridership,"duplicate (date, stop, line, period)",0.0,==,0.0,True,True
+ridership,service dates covered,90.0,==,90.0,True,True
+ridership,half-hour periods other than :00 / :30,0.0,==,0.0,True,True
+weather,gaps or repeats in the hourly series,0.0,==,0.0,True,True
+weather,missing values,0.0,==,0.0,True,True
+weather,temperatures outside -30..45 C,0.0,==,0.0,True,True
+weather,humidity outside 0..100 %,0.0,==,0.0,True,True
+weather,negative precipitation or snowfall,0.0,==,0.0,True,True

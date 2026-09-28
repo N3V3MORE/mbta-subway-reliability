@@ -1,0 +1,3 @@
+# Normalise line endings so the repository is identical on Windows, macOS and Linux.
+* text=auto
+*.png binary

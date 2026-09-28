@@ -1,0 +1,24 @@
+{
+  "html": [
+    "station_map.html",
+    "delay_heatmap.html",
+    "delay_by_route.html",
+    "headways.html",
+    "ablation.html",
+    "feature_importance.html",
+    "predicted_vs_actual.html",
+    "roc_pr.html",
+    "error_breakdown.html",
+    "demand_profiles.html",
+    "cluster_scatter.html",
+    "live_vs_historical.html"
+  ],
+  "png": [
+    "ablation.png",
+    "feature_importance.png",
+    "predicted_vs_actual.png",
+    "demand_profiles.png",
+    "delay_heatmap.png"
+  ],
+  "skipped": {}
+}

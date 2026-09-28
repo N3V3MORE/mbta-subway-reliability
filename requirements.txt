@@ -1,0 +1,18 @@
+# Core data stack
+pandas>=2.0
+numpy>=1.24
+pyarrow>=14.0
+scipy>=1.10
+# >=1.4 for HistGradientBoosting's categorical_features="from_dtype"
+scikit-learn>=1.4
+
+# Data collection
+requests>=2.31
+
+# Visualization (Plotly for interactive HTML, matplotlib for static PNGs)
+# >=5.24 for plotly.express.scatter_map (the MapLibre-based station map)
+plotly>=5.24
+matplotlib>=3.7
+
+# Testing
+pytest>=7.4

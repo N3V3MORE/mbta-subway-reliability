@@ -1,0 +1,38 @@
+# ---------------------------------------------------------------------------
+# Data. Raw and intermediate data are large and fully reproducible by running
+# `make data`, so they are never committed. Processed feature tables are also
+# regenerated. Committed fixtures under tests/fixtures/ are tiny and synthetic.
+# ---------------------------------------------------------------------------
+data/raw/
+data/interim/
+data/processed/
+
+# ---------------------------------------------------------------------------
+# Secrets. MBTA_API_KEY lives in .env, which must never be committed.
+# ---------------------------------------------------------------------------
+.env
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ---------------------------------------------------------------------------
+# OS / editor / tooling
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+.reasonix/
+.claude/

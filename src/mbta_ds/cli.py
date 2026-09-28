@@ -178,6 +178,12 @@ def stage_crosscheck(args: argparse.Namespace) -> dict:
     return crosscheck.run()
 
 
+def stage_story(args: argparse.Namespace) -> dict:
+    from . import story
+
+    return story.build()
+
+
 def stage_report(args: argparse.Namespace) -> dict:
     from . import report
 
@@ -244,6 +250,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("report", help="write reports/report.html and reports/tables/*.csv")
     p.set_defaults(func=stage_report)
 
+    p = sub.add_parser("story", help="write reports/story.html: the results in plain words and charts")
+    p.set_defaults(func=stage_story)
+
     p = sub.add_parser("all", help="run every stage in order")
     p.add_argument("--days", type=int, default=90, help="service days of history")
     p.add_argument("--quick", action="store_true", help="fast subsampled run")
@@ -265,7 +274,8 @@ def main(argv: list[str] | None = None) -> int:
         args.end = None
         args.refresh = False
         for stage in (stage_collect, stage_clean, stage_features, stage_validate,
-                      stage_train, stage_tail, stage_cluster, stage_figures, stage_report):
+                      stage_train, stage_tail, stage_cluster, stage_figures, stage_report,
+                      stage_story):
             logging.info("=== %s ===", stage.__name__.replace("stage_", ""))
             stage(args)
         return 0

@@ -33,7 +33,7 @@ help:
 	@echo "  model-full   as 'model', plus random forest and KNN"
 	@echo "  cluster      cluster stations by reliability and demand (Track B)"
 	@echo "  figures      render interactive and static figures"
-	@echo "  report       write reports/report.html and reports/tables/*.csv"
+	@echo "  report       write reports/report.html, reports/story.html and reports/tables/*.csv"
 	@echo "  all          setup + data + model + cluster + figures + report"
 	@echo "  test         run the test suite"
 	@echo "  clean        remove generated data and figures"
@@ -83,6 +83,8 @@ figures:
 report:
 	@echo "==> writing the report"
 	$(PYTHON) -m mbta_ds.cli report
+	@echo "==> writing the plain-language story"
+	$(PYTHON) -m mbta_ds.cli story
 
 test:
 	@echo "==> running tests"

@@ -66,7 +66,7 @@ Targets:
   model-full   as 'model', plus random forest and KNN
   cluster      cluster stations by reliability and demand (Track B)
   figures      render interactive and static figures
-  report       write reports/report.html and reports/tables/*.csv
+  report       write reports/report.html, reports/story.html and reports/tables/*.csv
   all          setup + data + model + cluster + figures + report
   test         run the test suite
   clean        remove generated data and figures
@@ -103,6 +103,7 @@ Targets:
     }
     'report' {
         Invoke-Step 'writing the report' @('-m', 'mbta_ds.cli', 'report')
+        Invoke-Step 'writing the plain-language story' @('-m', 'mbta_ds.cli', 'story')
     }
     'test' {
         Invoke-Step 'running tests' @('-m', 'pytest', '-q')

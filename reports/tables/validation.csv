@@ -3,13 +3,14 @@ clean,service dates lost by the pipeline,0.0,==,0.0,True,True
 clean,service dates empty in the source archive,0.0,>=,0.0,False,True
 clean,service dates outside the analysis window,0.0,==,0.0,True,True
 clean,scheduled time runs backwards within a trip,0.0,==,0.0,True,True
-clean,share of arrivals timestamped before the previous stop (flagged),0.0005,<=,0.001,True,True
+clean,share of arrivals timestamped before the previous stop (flagged),0.0004,<=,0.001,True,True
 clean,"duplicate (service_date, trip_id, stop_id)",0.0,==,0.0,True,True
 clean,duplicate visits under a second platform id,0.0,==,0.0,True,True
 clean,"negative travel, dwell or headway values",0.0,==,0.0,True,True
 clean,share of rows where travel_time == stop_ts - move_ts,1.0,>=,0.999,True,True
+clean,isolated stops more than 30 min off both neighbours,0.0,==,0.0,True,True
 clean,trips running more than 30 min early on average (mismatched),0.0,==,0.0,True,True
-clean,share of arrivals more than 1 h off schedule,0.0024,>=,0.0,False,True
+clean,share of arrivals more than 1 h off schedule,0.0023,>=,0.0,False,True
 clean,|median arrival delay| in seconds (sanity),56.0,<=,120.0,True,True
 clean,stations left as raw ids (name lookup failed),0.0,==,0.0,True,True
 clean,route-days below 60% of usual volume (shutdowns),79.0,>=,0.0,False,True

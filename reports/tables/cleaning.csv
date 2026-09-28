@@ -4,5 +4,6 @@ load raw performance rows,0
 drop rows missing observed or scheduled time,11837
 "drop duplicate (service_date, trip_id, stop_id)",3028
 drop duplicate visits under a second platform id,483
-drop trips matched to the wrong schedule (>30 min early),6355
+drop isolated stops >30 min off both neighbours,1270
+drop trips matched to the wrong schedule (>30 min early),6361
 final clean rows,0

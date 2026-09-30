@@ -1,7 +1,8 @@
 # ---------------------------------------------------------------------------
 # Data. Raw and intermediate data are large and fully reproducible by running
 # `make data`, so they are never committed. Processed feature tables are also
-# regenerated. Committed fixtures under tests/fixtures/ are tiny and synthetic.
+# regenerated. The test suite needs none of this: it builds its own small
+# synthetic frames in tests/conftest.py.
 # ---------------------------------------------------------------------------
 data/raw/
 data/interim/

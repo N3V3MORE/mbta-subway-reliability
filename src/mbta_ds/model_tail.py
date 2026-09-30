@@ -7,8 +7,9 @@ before the train reaches their station:
 * **Early warning** -- the probability the train is more than 10 minutes late on
   arrival. About 9% of arrivals are, but nearly all of those trains are *already*
   that late (delay is sticky), so any method catches them. The honest test is
-  **onsets**: trains under 5 minutes late now that end up 10+ minutes late (1,254
-  one stop ahead, 4,097 five stops ahead in the test period). They are scored apart.
+  **onsets**: trains under 5 minutes late now that end up 10+ minutes late (about
+  1,200 one stop ahead and 4,000 five stops ahead per test period). They are
+  scored apart.
 * **Ranges** -- a 10th-90th percentile band for the delay, judged by how often the
   truth falls inside (it should be ~80%) and how wide the band is.
 """
@@ -110,8 +111,8 @@ def evaluate_horizon(k: int, *, quick: bool) -> dict:
     y = test["big_delay"].to_numpy()
     onset = (test["prev_delay_1"] < ONSET_BELOW_SECONDS).to_numpy()
 
-    # Averaged over three seeds: with ~1,250 onsets, a single seed's onset PR-AUC
-    # ranged from 0.11 to 0.22 on identical data, which is noise, not signal.
+    # Averaged over three seeds: with ~1,200 onsets, which few trains one model
+    # ranks highest is largely luck (single seeds are reported alongside).
     seeds = md.PROBE_SEEDS[:1] if quick else md.PROBE_SEEDS
 
     def classifier(rows: pd.DataFrame, target: str, seed: int) -> np.ndarray:
@@ -149,13 +150,13 @@ def evaluate_horizon(k: int, *, quick: bool) -> dict:
     dates = np.sort(train["service_date"].unique())
     calibration_start = dates[int(len(dates) * (1 - CONFORMAL_FRACTION))]
     fit_rows = train[train["service_date"] < calibration_start]
-    calibration = train[train["service_date"] >= calibration_start]
+    cal_rows = train[train["service_date"] >= calibration_start]
     models = {level: md._fit(md.ChangeRegressor(md._boost(quick, loss="quantile", quantile=level)),
                              fit_rows, numeric, categorical, "delay_seconds")
               for level in QUANTILES}
     q = {level: m.predict(X) for level, m in models.items()}
-    cal_cols = calibration[numeric + categorical]
-    margin = conformal_margin(calibration["delay_seconds"].to_numpy(),
+    cal_cols = cal_rows[numeric + categorical]
+    margin = conformal_margin(cal_rows["delay_seconds"].to_numpy(),
                               models[0.1].predict(cal_cols), models[0.9].predict(cal_cols),
                               QUANTILES[-1] - QUANTILES[0])
     low, high = q[0.1] - margin, q[0.9] + margin

@@ -25,10 +25,8 @@ from sklearn.metrics import precision_recall_curve, roc_curve
 from . import (
     clean,
     cluster_stations,
-    collect_lamp,
     collect_v3,
     config,
-    features,
     model_delay,
     model_tail,
 )
@@ -89,7 +87,33 @@ def _period_columns(frame: pd.DataFrame) -> list[str]:
     return [c for c in frame.columns if re.fullmatch(r"p\d{2}", str(c))]
 
 
-def _sample(frame: pd.DataFrame, n: int, seed: int = 506) -> pd.DataFrame:
+def _demand_shapes() -> tuple[pd.DataFrame, list[float]]:
+    """Mean demand shape per demand cluster (rows) over the half-hours, and the
+    hour of day of each column.
+
+    Grouped on the numeric id and labelled with the name, so distinct clusters
+    stay distinct even if two of them were given the same descriptive name.
+    """
+    path = config.PROCESSED_DIR / "demand_profiles.parquet"
+    if not path.exists():
+        raise FileNotFoundError(f"{path.name} missing; run the `cluster` stage first")
+    profiles = pd.read_parquet(path)
+    profiles["label"] = (profiles["demand_cluster_id"].astype(str)
+                         + ": " + profiles["demand_cluster"].astype(str))
+    period_columns = _period_columns(profiles)
+    grouped = profiles.groupby("label")[period_columns].mean()
+    return grouped, [int(c[1:]) / 2 for c in period_columns]
+
+
+def _marker_sizes(entries: pd.Series | None, length: int) -> np.ndarray:
+    """Map marker size to daily entries; a run without ridership gets one size."""
+    if entries is None:
+        return np.full(length, 10.0)
+    size = entries.fillna(0).clip(lower=1).to_numpy(dtype=float)
+    return 6 + 26 * (size / size.max()) ** 0.5
+
+
+def _sample(frame: pd.DataFrame, n: int, seed: int = config.SEED) -> pd.DataFrame:
     """Randomly subsample a frame for plotting.
 
     Plotly embeds every plotted point in the HTML file. A violin or box trace over
@@ -135,9 +159,11 @@ def figure_station_map() -> tuple[go.Figure, str]:
     if merged.empty:
         raise RuntimeError("no stations could be matched to coordinates")
 
-    merged["total_entries"] = merged.get("total_entries", pd.Series(np.nan)).fillna(0)
-    size = merged["total_entries"].clip(lower=1)
-    merged["_size"] = 6 + 26 * (size / size.max()) ** 0.5
+    # A run without ridership has no entries column. (Filling a missing column
+    # from a one-row Series aligned on index 0 left every other size NaN, which
+    # Plotly rejected, so the holdout report had no map.)
+    merged["_size"] = _marker_sizes(merged.get("total_entries"), len(merged))
+    merged["total_entries"] = merged.get("total_entries", pd.Series(np.nan, index=merged.index))
 
     figure = px.scatter_map(
         merged,
@@ -386,19 +412,7 @@ def figure_error_by_hour_and_route() -> tuple[go.Figure, str]:
 
 def figure_demand_profiles() -> tuple[go.Figure, str]:
     """Mean demand shape for each demand cluster across the 48 half-hour periods."""
-    path = config.PROCESSED_DIR / "demand_profiles.parquet"
-    if not path.exists():
-        raise FileNotFoundError(f"{path} missing; run the `cluster` stage first")
-    profiles = pd.read_parquet(path)
-    # Group on the numeric id and label with the name, so distinct clusters stay
-    # distinct even if two of them were given the same descriptive name.
-    profiles["label"] = (profiles["demand_cluster_id"].astype(str)
-                         + ": " + profiles["demand_cluster"].astype(str))
-
-    period_columns = _period_columns(profiles)
-    grouped = profiles.groupby("label")[period_columns].mean()
-    hours = [int(c[1:]) / 2 for c in period_columns]
-
+    grouped, hours = _demand_shapes()
     figure = go.Figure()
     for cluster, row in grouped.iterrows():
         figure.add_trace(go.Scatter(
@@ -547,14 +561,7 @@ def png_calibration() -> str:
 
 
 def png_demand_profiles() -> str:
-    path = config.PROCESSED_DIR / "demand_profiles.parquet"
-    profiles = pd.read_parquet(path)
-    profiles["label"] = (profiles["demand_cluster_id"].astype(str)
-                         + ": " + profiles["demand_cluster"].astype(str))
-    period_columns = _period_columns(profiles)
-    grouped = profiles.groupby("label")[period_columns].mean()
-    hours = [int(c[1:]) / 2 for c in period_columns]
-
+    grouped, hours = _demand_shapes()
     fig, ax = plt.subplots(figsize=(8, 4.5))
     for cluster, row in grouped.iterrows():
         ax.plot(hours, row.to_numpy() * 100, marker="o", markersize=3, label=cluster)
@@ -587,6 +594,12 @@ def png_delay_heatmap() -> str:
 # ---------------------------------------------------------------------------
 # Stage entry point
 # ---------------------------------------------------------------------------
+def _reason(exc: Exception) -> str:
+    """Why a figure was skipped, without the local checkout path (the manifest is
+    committed, and the path names whoever built it)."""
+    return str(exc).replace(str(config.ROOT), ".").strip()
+
+
 def run() -> dict:
     """Render every figure that the available artefacts support."""
     config.ensure_dirs()
@@ -612,7 +625,7 @@ def run() -> dict:
         try:
             result = builder()
         except Exception as exc:  # noqa: BLE001 - one missing input must not stop the rest
-            skipped[builder.__name__] = str(exc)
+            skipped[builder.__name__] = _reason(exc)
             log.warning("skipping %s: %s", builder.__name__, exc)
             continue
         if result is None:
@@ -626,7 +639,7 @@ def run() -> dict:
         try:
             png.append(builder())
         except Exception as exc:  # noqa: BLE001
-            skipped[builder.__name__] = str(exc)
+            skipped[builder.__name__] = _reason(exc)
             log.warning("skipping %s: %s", builder.__name__, exc)
 
     manifest = {"html": html, "png": png, "skipped": skipped}

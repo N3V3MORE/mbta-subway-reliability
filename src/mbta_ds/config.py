@@ -6,8 +6,9 @@ hard-codes a URL or assumes a working directory.
 
 from __future__ import annotations
 
+import json
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 
 # --------------------------------------------------------------------------
@@ -124,6 +125,9 @@ DEFAULT_END = "2026-06-30"
 #: A train is "late" for classification purposes beyond this threshold.
 LATE_THRESHOLD_SECONDS = 300
 
+#: The one random seed: sampling, every model, every clustering call and figure.
+SEED = 506
+
 
 # --------------------------------------------------------------------------
 # Environment
@@ -177,7 +181,6 @@ def format_service_date(value: date) -> str:
     return value.strftime("%Y-%m-%d")
 
 
-
 # --------------------------------------------------------------------------
 # Analysis-window manifest
 # --------------------------------------------------------------------------
@@ -189,8 +192,6 @@ WINDOW_PATH = RUN_DIR / "analysis_window.json"
 
 def save_window(start: date, end: date) -> None:
     """Persist the resolved analysis window for downstream stages."""
-    import json
-
     WINDOW_PATH.parent.mkdir(parents=True, exist_ok=True)
     WINDOW_PATH.write_text(
         json.dumps({"start": start.isoformat(), "end": end.isoformat()}, indent=2),
@@ -200,8 +201,6 @@ def save_window(start: date, end: date) -> None:
 
 def load_window() -> tuple[date, date] | None:
     """Read the persisted analysis window, or ``None`` if collection has not run."""
-    import json
-
     if not WINDOW_PATH.exists():
         return None
     data = json.loads(WINDOW_PATH.read_text(encoding="utf-8"))

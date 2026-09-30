@@ -235,9 +235,10 @@ def run() -> dict:
     config.ensure_dirs()
     frame = clean.load()
     feats = features.load()
+    stickiness_table = stickiness(feats)
     out = {
-        "stickiness": stickiness(feats).to_dict("records"),
-        "network_share_recovering_over_60s": stickiness(feats).attrs["network_share_recovering_over_60s"],
+        "stickiness": stickiness_table.to_dict("records"),
+        "network_share_recovering_over_60s": stickiness_table.attrs["network_share_recovering_over_60s"],
         "final_hop": final_hop(frame).to_dict("records"),
         "heath_street": heath_street(frame),
         "worst_days": worst_days(frame),

@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 OUT_PATH = config.REPORTS_DIR / "report.html"
 
-#: Result tables exported as CSV: name -> (loader, {column: readable name}).
+#: Internal model key -> the name a reader sees in the report and its tables.
 MODEL_LABELS = {
     "hist_gradient_boosting_change": "Gradient boosting on the change since the last stop",
     "hist_gradient_boosting_mae": "Gradient boosting (absolute-error loss)",
@@ -35,6 +35,7 @@ MODEL_LABELS = {
     "knn": "k-nearest neighbours",
     "baseline_persistence": "Baseline: previous stop's delay",
     "baseline_route_hour_mean": "Baseline: route x hour average",
+    "baseline_run_time": "Baseline: departure + usual running time",
     "baseline_zero": "Baseline: always on time",
     "baseline_route_hour_rate": "Baseline: route x hour late rate",
     "baseline_always_ontime": "Baseline: never late",
@@ -120,10 +121,12 @@ def tables() -> dict[str, pd.DataFrame]:
         "backtest": backtest.rename(columns={
             "test_start": "Test from", "test_end": "Test to", "train_days": "Training days",
             "n_test": "Arrivals scored", "persistence_mae": "Baseline MAE (s)",
+            "run_time_mae": "Run-time baseline MAE (s)",
             "model_mae": "Model MAE (s)", "improvement_pct": "Improvement (%)"}),
         "horizons": pd.DataFrame(metrics["horizons"]).rename(columns={
             "horizon_stops": "Stops ahead", "n_test": "Arrivals scored",
-            "persistence_mae": "Baseline MAE (s)", "own_train_mae": "Own train only MAE (s)",
+            "persistence_mae": "Baseline MAE (s)", "run_time_mae": "Run-time baseline MAE (s)",
+            "own_train_mae": "Own train only MAE (s)",
             "with_other_trains_mae": "+ other trains MAE (s)"}),
         "ablation": pd.DataFrame(metrics["ablation"])[
             ["features", "n_features", "mae_seconds", "mae_seed_spread"]].rename(columns={

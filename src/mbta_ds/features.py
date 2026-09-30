@@ -78,9 +78,9 @@ FEATURE_GROUPS: dict[str, tuple[str, ...]] = {
     ),
     # `days_since_window_start` is deliberately NOT a model feature. It is a
     # monotone index of the window, so under a temporal split its train and test
-    # ranges never overlap and a tree splitting on it extrapolates blindly (it
-    # raised test MAE from 272 s to 442 s). It is still built into the table so
-    # `model_delay.run_calendar_diagnostic` can reproduce that finding.
+    # ranges never overlap and a tree splitting on it extrapolates blindly. It is
+    # still built into the table so `model_delay.run_calendar_diagnostic` can
+    # measure the damage (README section 7).
     "calendar": (
         "day_of_week",
         "is_weekend",
@@ -539,7 +539,7 @@ def stratified_sample(frame: pd.DataFrame, max_rows: int | None, seed: int) -> p
 def build(
     *,
     max_rows: int | None = None,
-    seed: int = 506,
+    seed: int = config.SEED,
     refresh: bool = False,
     clean_frame: pd.DataFrame | None = None,
     no_cache: bool = False,
@@ -639,8 +639,10 @@ def build(
     keep = (
         list(dict.fromkeys(
             KEY_COLUMNS + TARGET_COLUMNS + tuple(declared) + DIAGNOSTIC_COLUMNS
+            # `known_at` and `scheduled_epoch` are not features: they let the
+            # run-time baseline add a usual running time to the prediction moment.
             + ("parent_station", "station_name", "direction_destination", "arrival_local",
-               "known_at")
+               "known_at", "scheduled_epoch")
         ))
     )
     keep = [c for c in keep if c in frame.columns]

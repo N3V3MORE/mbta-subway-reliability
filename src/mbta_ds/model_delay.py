@@ -69,7 +69,7 @@ BACKTEST_PATH = config.PROCESSED_DIR / "backtest.csv"
 HORIZON_PATH = config.PROCESSED_DIR / "horizons.csv"
 
 TEST_FRACTION = 0.25
-SEED = 506
+SEED = config.SEED
 #: Training rows per fit, sampled evenly across service dates. Test sets are
 #: never sampled: every arrival in the test period is scored.
 TRAIN_ROWS = 450_000
@@ -87,8 +87,8 @@ KNN_SAMPLE = 20_000
 RF_SAMPLE = 150_000
 #: The monotone window-index feature investigated by `run_calendar_diagnostic`.
 TREND_FEATURE = "days_since_window_start"
-#: The ablation probe is averaged over these seeds: one seed alone moves a row's
-#: MAE by up to 2.5 s, more than most feature groups are worth.
+#: The ablation probe is averaged over these seeds, and their spread is reported,
+#: because most feature groups are worth less than one seed's noise.
 PROBE_SEEDS = (SEED, 1, 2)
 
 #: The models reported and analysed as the result, fixed in advance. Picking
@@ -180,8 +180,8 @@ def make_preprocessor(
 
     ``one_hot=False`` is for histogram gradient boosting, which takes pandas
     ``category`` columns and NaN natively, so both pass through untouched. Leaving
-    NaN in place matters: a missing ``prev_delay_1`` means "second stop of the
-    trip", and median-imputing it erased that signal (test MAE 44.2 s -> 43.7 s).
+    NaN in place matters: a missing ``prev_delay_2`` means "first stop after the
+    origin", which median imputation would erase.
 
     Otherwise numeric columns are median-imputed (and standardised if ``scale``)
     and categoricals one-hot encoded into a *dense* matrix: scikit-learn's trees
@@ -231,10 +231,13 @@ def _fit(model, train: pd.DataFrame, numeric: list[str], categorical: list[str],
          target: str):
     """Fit one candidate on ``train``; learned models are wrapped in a pipeline.
 
-    Baselines are fit as-is. Random forests see at most :data:`RF_SAMPLE` rows,
-    since impurity gains on 400k rows are not worth the order-of-magnitude cost.
-    Boosted models stop early on the latest training dates (:func:`temporal_validation`).
+    Baselines are hand-written rules fit on the whole frame (see :func:`_inputs`).
+    Random forests see at most :data:`RF_SAMPLE` rows, since impurity gains on
+    400k rows are not worth the order-of-magnitude cost. Boosted models stop early
+    on the latest training dates (:func:`temporal_validation`).
     """
+    if isinstance(model, BASELINES):
+        return model.fit(train, train[target].to_numpy(dtype=float))
     if isinstance(model, (RandomForestRegressor, RandomForestClassifier)) and len(train) > RF_SAMPLE:
         train = train.sample(RF_SAMPLE, random_state=SEED)
     cols = numeric + categorical
@@ -247,6 +250,13 @@ def _fit(model, train: pd.DataFrame, numeric: list[str], categorical: list[str],
     if not isinstance(pipeline, ChangeRegressor):
         val = {f"model__{k}": v for k, v in val.items()}
     return pipeline.fit(fit_rows[cols], fit_rows[target].to_numpy(dtype=float), **val)
+
+
+def _inputs(model, frame: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
+    """What a fitted candidate predicts from: learned models see only their
+    feature columns; baselines may also read the prediction moment and the
+    timetable (``known_at``, ``scheduled_epoch``), both known before arrival."""
+    return frame if isinstance(model, BASELINES) else frame[cols]
 
 
 def _pipeline(model, numeric: list[str], categorical: list[str]):
@@ -398,13 +408,45 @@ class ChangeRegressor(BaseEstimator, RegressorMixin):
         return self.base_.predict(X) + self.estimator_.predict(X)
 
 
+class RunTimeRegressor:
+    """Departure time plus the usual running time to this stop.
+
+    The textbook transit arrival-prediction baseline. At the
+    prediction moment ``known_at`` the train has just left an earlier stop, so
+    predict its arrival as that moment plus the median time trains took from there
+    to this stop in training (per route, direction and stop). Unlike persistence it
+    uses the departure time, which the learned models also know (through the
+    previous dwell) -- and which matters most at a run's second stop, after the
+    train has waited at the origin.
+    """
+
+    keys = ("route_id", "direction_id", "stop_id")
+
+    def _index(self, X) -> pd.MultiIndex:
+        return pd.MultiIndex.from_arrays([X[k].astype(str).to_numpy() for k in self.keys])
+
+    def fit(self, X, y):
+        run = pd.Series(X["scheduled_epoch"].to_numpy(dtype=float) + np.asarray(y, dtype=float)
+                        - X["known_at"].to_numpy(dtype=float), index=self._index(X))
+        self.fill_ = float(run.median())
+        self.table_ = run.groupby(level=list(range(len(self.keys)))).median()
+        # Without a prediction moment there is no departure to add to: persist.
+        self.fallback_ = PersistenceRegressor().fit(X)
+        return self
+
+    def predict(self, X):
+        run = self.table_.reindex(self._index(X)).fillna(self.fill_).to_numpy()
+        predicted = X["known_at"].to_numpy(dtype=float) + run - X["scheduled_epoch"].to_numpy(dtype=float)
+        return np.where(np.isnan(predicted), self.fallback_.predict(X), predicted)
+
+
 def _change_boost(quick: bool) -> ChangeRegressor:
     """The headline model: absolute-error boosting on the change in delay."""
     return ChangeRegressor(_boost(quick, loss="absolute_error"))
 
 
 BASELINES = (ZeroRegressor, AlwaysOnTimeClassifier, PersistenceRegressor,
-             PersistenceClassifier, GroupMeanRegressor)
+             PersistenceClassifier, GroupMeanRegressor, RunTimeRegressor)
 
 
 # ---------------------------------------------------------------------------
@@ -431,6 +473,7 @@ def regression_models(quick: bool, full: bool = False) -> dict[str, object]:
         "baseline_zero": ZeroRegressor(),
         "baseline_persistence": PersistenceRegressor(),
         "baseline_route_hour_mean": GroupMeanRegressor(),
+        "baseline_run_time": RunTimeRegressor(),
         "ridge": Ridge(alpha=1.0, random_state=SEED),
         "decision_tree": DecisionTreeRegressor(max_depth=12 if quick else 18,
                                                min_samples_leaf=20, random_state=SEED),
@@ -463,8 +506,12 @@ def evaluate_regression(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
 
 
 def run_regression(split: Split, *, quick: bool, full: bool = False
-                   ) -> tuple[pd.DataFrame, dict, str]:
-    """Fit every regression candidate and return the comparison table."""
+                   ) -> tuple[pd.DataFrame, dict]:
+    """Fit every regression candidate; return the comparison table and the fits.
+
+    Deliberately no "best model": the headline is :data:`HEADLINE_REGRESSOR`,
+    fixed in advance, never the candidate that happened to score best on test.
+    """
     numeric, categorical = _columns(split.train)
     cols = numeric + categorical
     y_test = split.test["delay_seconds"].to_numpy()
@@ -475,7 +522,7 @@ def run_regression(split: Split, *, quick: bool, full: bool = False
     with Progress(len(candidates) + full, "regression models") as progress:
         for name, model in candidates.items():
             fitted[name] = _fit(model, split.train, numeric, categorical, "delay_seconds")
-            metrics = evaluate_regression(y_test, fitted[name].predict(split.test[cols]))
+            metrics = evaluate_regression(y_test, fitted[name].predict(_inputs(model, split.test, cols)))
             rows.append({"model": name, **metrics})
             progress.step(name, extra=f"MAE {metrics['mae_seconds']:.1f}s  R2 {metrics['r2']:.3f}")
 
@@ -491,7 +538,7 @@ def run_regression(split: Split, *, quick: bool, full: bool = False
             progress.step("knn", extra=f"MAE {metrics['mae_seconds']:.1f}s (on {metrics['n']:,} rows)")
 
     comparison = pd.DataFrame(rows).sort_values("mae_seconds").reset_index(drop=True)
-    return comparison, fitted, comparison.iloc[0]["model"]
+    return comparison, fitted
 
 
 # ---------------------------------------------------------------------------
@@ -552,7 +599,8 @@ def run_classification(split: Split, *, quick: bool, full: bool = False
     with Progress(len(candidates), "classifiers") as progress:
         for name, model in candidates.items():
             fitted[name] = _fit(model, split.train, numeric, categorical, "late")
-            probabilities[name] = fitted[name].predict_proba(split.test[numeric + categorical])[:, 1]
+            probabilities[name] = fitted[name].predict_proba(
+                _inputs(model, split.test, numeric + categorical))[:, 1]
             metrics = evaluate_classification(y_test, probabilities[name])
             rows.append({"model": name, **metrics})
             progress.step(name, extra=f"F1 {metrics['f1']:.3f}  AUC {metrics['roc_auc']:.3f}  "
@@ -721,6 +769,20 @@ def error_analysis(test: pd.DataFrame, predictions: np.ndarray) -> dict:
             "by_condition": _agg("condition"), "by_day_type": _agg("day_type")}
 
 
+def run_start_comparison(test: pd.DataFrame, predictions: dict[str, np.ndarray]) -> list[dict]:
+    """MAE at a run's first predictable stop versus every later stop.
+
+    Trains wait at the origin, and the source records no dwell there, so at the
+    next stop persistence and the learned models do not know when the train left;
+    the run-time baseline does. Reported so that gap is measured, not asserted.
+    """
+    start = (test["stop_index"] == 1).to_numpy()
+    y = test["delay_seconds"].to_numpy()
+    return [{"model": name, "run_start_mae": _mae(p[start], y[start]),
+             "later_stops_mae": _mae(p[~start], y[~start]), "run_start_share": float(start.mean())}
+            for name, p in predictions.items()]
+
+
 # ---------------------------------------------------------------------------
 # Robustness: walk-forward backtest and prediction horizon
 # ---------------------------------------------------------------------------
@@ -751,6 +813,7 @@ def run_backtest(frame: pd.DataFrame, *, quick: bool) -> pd.DataFrame:
                          "delay_seconds")
             predicted, level_pred = model.predict(X), level.predict(X)
             persistence = PersistenceRegressor().fit(train).predict(test)
+            run_time = RunTimeRegressor().fit(train, train["delay_seconds"]).predict(test)
             # Arrivals within an hour of the timetable: is the change model's win
             # only on the few rows logged hours off schedule?
             within = np.abs(y) <= 3600
@@ -758,6 +821,7 @@ def run_backtest(frame: pd.DataFrame, *, quick: bool) -> pd.DataFrame:
                 "test_start": str(window[0]), "test_end": str(window[-1]),
                 "train_days": int(train["service_date"].nunique()), "n_test": len(test),
                 "persistence_mae": _mae(persistence, y),
+                "run_time_mae": _mae(run_time, y),
                 "model_mae": _mae(predicted, y),
                 "level_model_mae": _mae(level_pred, y),
                 "persistence_mae_within_1h": _mae(persistence[within], y[within]),
@@ -793,7 +857,8 @@ def run_horizons(*, quick: bool, cutoff) -> pd.DataFrame:
             numeric, categorical = _columns(train)
             y = test["delay_seconds"].to_numpy()
             row = {"horizon_stops": k, "n_test": len(test),
-                   "persistence_mae": _mae(PersistenceRegressor().fit(train).predict(test), y)}
+                   "persistence_mae": _mae(PersistenceRegressor().fit(train).predict(test), y),
+                   "run_time_mae": _mae(RunTimeRegressor().fit(train, train["delay_seconds"]).predict(test), y)}
             ids = pd.MultiIndex.from_frame(test[key].astype(str))
             if common is None:
                 common = ids
@@ -848,7 +913,7 @@ def run(*, quick: bool = False, full: bool = False) -> dict:
 
     with Progress(7, "train stage") as stage:
         log.info("--- regression ---")
-        reg_comparison, reg_fitted, _ = run_regression(split, quick=quick, full=full)
+        reg_comparison, reg_fitted = run_regression(split, quick=quick, full=full)
         stage.step("regression")
 
         log.info("--- classification ---")
@@ -869,6 +934,9 @@ def run(*, quick: bool = False, full: bool = False) -> dict:
         chosen = reg_fitted[chosen_name]
         test_predictions = chosen.predict(X_test)
         analysis = error_analysis(split.test, test_predictions)
+        analysis["by_run_start"] = run_start_comparison(split.test, {
+            name: reg_fitted[name].predict(_inputs(reg_fitted[name], split.test, numeric + categorical))
+            for name in ("baseline_persistence", "baseline_run_time", chosen_name)})
 
         log.info("--- feature importance (%s) ---", chosen_name)
         importance = compute_importance(chosen, split.test, numeric, categorical)

@@ -253,8 +253,6 @@ class TestFeatureSelection:
 
 class TestAblationOrder:
     def test_first_step_is_schedule_only(self):
-        from mbta_ds import features
-
         label, groups = model_delay.ABLATION_ORDER[0]
         assert groups == ("schedule",)
         assert label == "schedule"
@@ -283,3 +281,41 @@ class TestTemporalEarlyStopping:
         for model in (model_delay._boost(True), model_delay._change_boost(True)):
             fitted = model_delay._fit(model, frame, numeric, categorical, "delay_seconds")
             assert np.isfinite(fitted.predict(frame[numeric + categorical])).all()
+
+
+class TestRunTimeBaseline:
+    def _frame(self):
+        # One stop, two training trains: left the previous stop at t=0 and took
+        # 60 s and 100 s to arrive; scheduled to arrive at t=90.
+        return pd.DataFrame({
+            "route_id": ["Red"] * 3, "direction_id": [0] * 3, "stop_id": ["s1"] * 3,
+            "known_at": [0.0, 0.0, 1_000.0], "scheduled_epoch": [90.0, 90.0, 1_090.0],
+            "prev_delay_1": [5.0, 5.0, 400.0],
+        })
+
+    def test_adds_the_median_running_time_to_the_departure(self):
+        frame = self._frame()
+        y = np.array([60.0 - 90.0, 100.0 - 90.0, 0.0])
+        model = model_delay.RunTimeRegressor().fit(frame.iloc[:2], y[:2])
+        # Median run 80 s: arrives at 1,080 against a scheduled 1,090.
+        assert model.predict(frame.iloc[[2]])[0] == -10.0
+
+    def test_ignores_the_previous_delay_when_the_departure_is_known(self):
+        """Persistence would say +400 s; the train has in fact just left."""
+        frame = self._frame()
+        model = model_delay.RunTimeRegressor().fit(frame.iloc[:2], np.array([-30.0, 10.0]))
+        assert model.predict(frame.iloc[[2]])[0] != 400.0
+
+    def test_is_a_baseline_candidate_fit_on_the_whole_frame(self):
+        assert "baseline_run_time" in model_delay.regression_models(quick=True)
+        frame = self._frame()
+        frame["delay_seconds"] = [-30.0, 10.0, 0.0]
+        fitted = model_delay._fit(model_delay.RunTimeRegressor(), frame.iloc[:2], [], [], "delay_seconds")
+        assert fitted.predict(model_delay._inputs(fitted, frame, []))[2] == -10.0
+
+
+def test_run_start_comparison_splits_the_first_predictable_stop_from_the_rest():
+    test = pd.DataFrame({"stop_index": [1, 2, 3, 1], "delay_seconds": [100.0, 0.0, 0.0, 100.0]})
+    rows = model_delay.run_start_comparison(test, {"zero": np.zeros(4)})
+    assert rows == [{"model": "zero", "run_start_mae": 100.0, "later_stops_mae": 0.0,
+                     "run_start_share": 0.5}]

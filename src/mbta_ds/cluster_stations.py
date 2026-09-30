@@ -46,7 +46,7 @@ CLUSTERS_PATH = config.PROCESSED_DIR / "station_clusters.parquet"
 METRICS_PATH = config.PROCESSED_DIR / "cluster_metrics.json"
 PROFILES_PATH = config.PROCESSED_DIR / "cluster_profiles.csv"
 
-SEED = 506
+SEED = config.SEED
 K_RANGE = range(2, 9)
 #: Cap the PCA components so the clustering stays interpretable.
 MAX_COMPONENTS = 6

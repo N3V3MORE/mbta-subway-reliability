@@ -56,7 +56,8 @@ def stage_collect(args: argparse.Namespace) -> dict:
     # archive and ridership is the shorter one, so the window ends at the
     # earlier of the two publication fronts.
     # ------------------------------------------------------------------
-    index = collect_lamp.fetch_index(session, refresh=args.refresh)
+    # "latest" must see today's catalogue, not the one cached on the first run.
+    index = collect_lamp.fetch_index(session, refresh=args.refresh or args.end == "latest")
     lamp_first, lamp_last = collect_lamp.coverage(index)
 
     window_end = lamp_last

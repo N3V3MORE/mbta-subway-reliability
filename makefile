@@ -7,9 +7,6 @@
 # step. Every target is safe to re-run: collection is cached and incremental.
 
 PYTHON ?= python
-ifeq ($(OS),Windows_NT)
-PYTHON := python
-endif
 
 export PYTHONPATH := src
 
@@ -98,7 +95,7 @@ test:
 
 clean:
 	@echo "==> removing generated outputs"
-	$(PYTHON) -c "import shutil,pathlib; [shutil.rmtree(p, ignore_errors=True) for p in ('data/processed','reports')]"
+	$(PYTHON) -c "import shutil; [shutil.rmtree(p, ignore_errors=True) for p in ('data/processed','reports')]"
 
 distclean: clean
 	@echo "==> removing downloaded caches"

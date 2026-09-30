@@ -26,3 +26,21 @@ class TestPeriodColumns:
     def test_only_half_hour_share_columns_are_selected(self):
         frame = pd.DataFrame(columns=["p00", "p47", "pca_1", "label", "p1", "total_entries"])
         assert viz._period_columns(frame) == ["p00", "p47"]
+
+
+class TestMarkerSizes:
+    def test_a_run_without_ridership_gets_one_finite_size(self):
+        """The holdout run has no entries column; its map used to fail on NaN sizes."""
+        sizes = viz._marker_sizes(None, 4)
+        assert sizes.shape == (4,) and np.isfinite(sizes).all()
+        assert len(set(sizes)) == 1
+
+    def test_ungated_stations_get_the_smallest_marker(self):
+        sizes = viz._marker_sizes(pd.Series([np.nan, 100.0, 10_000.0]), 3)
+        assert np.isfinite(sizes).all()
+        assert sizes[0] < sizes[1] < sizes[2]
+
+
+def test_skip_reasons_do_not_name_the_local_checkout():
+    exc = FileNotFoundError(f"{viz.config.ROOT / 'data' / 'x.parquet'} missing")
+    assert str(viz.config.ROOT) not in viz._reason(exc)

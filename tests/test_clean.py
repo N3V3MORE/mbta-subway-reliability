@@ -13,11 +13,10 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from mbta_ds import clean, config
 
-from .conftest import SERVICE_DATE, _epoch, make_raw_trip
+from .conftest import SERVICE_DATE, make_raw_trip
 
 
 class TestServiceMidnightAnchor:

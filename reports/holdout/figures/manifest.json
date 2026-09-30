@@ -1,5 +1,6 @@
 {
   "html": [
+    "station_map.html",
     "delay_heatmap.html",
     "delay_by_route.html",
     "headways.html",
@@ -18,9 +19,8 @@
     "calibration.png"
   ],
   "skipped": {
-    "figure_station_map": "\n    Invalid element(s) received for the 'size' property of scattermap.marker\n        Invalid elements include: [nan, nan, nan, nan, nan, nan, nan, nan, nan, nan]\n\n    The 'size' property is a number and may be specified as:\n      - An int or float in the interval [0, inf]\n      - A tuple, list, or one-dimensional numpy array of the above",
-    "figure_demand_profiles": "C:\\Users\\sushm\\Desktop\\Code\\MBTA\\data\\runs\\holdout\\processed\\demand_profiles.parquet missing; run the `cluster` stage first",
+    "figure_demand_profiles": "demand_profiles.parquet missing; run the `cluster` stage first",
     "figure_cluster_scatter": "demand clustering not available",
-    "png_demand_profiles": "[Errno 2] No such file or directory: 'C:\\\\Users\\\\sushm\\\\Desktop\\\\Code\\\\MBTA\\\\data\\\\runs\\\\holdout\\\\processed\\\\demand_profiles.parquet'"
+    "png_demand_profiles": "demand_profiles.parquet missing; run the `cluster` stage first"
   }
 }

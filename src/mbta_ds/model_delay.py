@@ -2,8 +2,9 @@
 
 Two supervised tasks on the same feature table:
 
-* **Regression** -- predict ``delay_seconds`` at each stop.
-* **Classification** -- predict ``late`` (more than 5 minutes behind schedule).
+* **Regression** -- predict ``delay_seconds`` at each stop, against the timetable.
+* **Classification** -- predict ``late``: riders wait more than 5 minutes longer
+  than planned for the train (``clean.lateness``).
 
 Evaluation discipline
 ---------------------
@@ -73,10 +74,11 @@ SEED = config.SEED
 #: Training rows per fit, sampled evenly across service dates. Test sets are
 #: never sampled: every arrival in the test period is scored.
 TRAIN_ROWS = 450_000
-#: A route-day where at least this share of arrivals ran more than 10 minutes
-#: late is reported separately as "disrupted". On a typical route-day 6% do (15%
-#: on Blue and Red), so 20% flags roughly the worst eighth of route-days.
-DISRUPTED_SHARE = 0.20
+#: A route-day where at least this share of arrivals kept riders waiting 10+
+#: minutes longer than planned is reported separately as "disrupted". On a typical
+#: route-day 2.6% do, so 8% flags about the worst 5% of spring route-days (18% of
+#: winter's, storms included).
+DISRUPTED_SHARE = 0.08
 #: Walk-forward backtest: refit before each of the last N windows of this length.
 BACKTEST_FOLDS, BACKTEST_DAYS = 4, 14
 #: How many stops ahead the horizon experiment predicts.
@@ -160,9 +162,15 @@ def _usable_columns(frame: pd.DataFrame, columns: list[str]) -> list[str]:
     return [c for c in present if c not in empty]
 
 
-def _columns(frame: pd.DataFrame) -> tuple[list[str], list[str]]:
-    """The ``(numeric, categorical)`` feature columns usable in ``frame``."""
-    numeric = _usable_columns(frame, [c for g in features.FEATURE_GROUPS.values() for c in g])
+def _columns(frame: pd.DataFrame, *, lateness: bool = False) -> tuple[list[str], list[str]]:
+    """The ``(numeric, categorical)`` feature columns usable in ``frame``.
+
+    ``lateness`` adds the rider-lateness group, for the models judged on it; the
+    timetable-delay regression leaves it out.
+    """
+    groups = [g for g in features.FEATURE_GROUPS
+              if lateness or g not in features.LATENESS_ONLY_GROUPS]
+    numeric = _usable_columns(frame, [c for g in groups for c in features.FEATURE_GROUPS[g]])
     return numeric, [c for c in features.CATEGORICAL_FEATURES if c in frame.columns]
 
 
@@ -212,7 +220,7 @@ EARLY_STOP_FRACTION = 0.1
 
 
 def _early_stopping(model) -> bool:
-    inner = model.estimator if isinstance(model, ChangeRegressor) else model
+    inner = model.estimator if isinstance(model, (ChangeRegressor, RunTimeChangeRegressor)) else model
     return isinstance(inner, NATIVE_MODELS) and inner.early_stopping is True
 
 
@@ -240,23 +248,29 @@ def _fit(model, train: pd.DataFrame, numeric: list[str], categorical: list[str],
         return model.fit(train, train[target].to_numpy(dtype=float))
     if isinstance(model, (RandomForestRegressor, RandomForestClassifier)) and len(train) > RF_SAMPLE:
         train = train.sample(RF_SAMPLE, random_state=SEED)
-    cols = numeric + categorical
+    # The lookup corrector reads the departure and timetable columns itself.
+    cols = slice(None) if isinstance(model, RunTimeChangeRegressor) else numeric + categorical
     pipeline = _pipeline(model, numeric, categorical)
     split = temporal_validation(train) if _early_stopping(model) else None
     if split is None:
         return pipeline.fit(train[cols], train[target].to_numpy(dtype=float))
     fit_rows, val_rows = split
     val = {"X_val": val_rows[cols], "y_val": val_rows[target].to_numpy(dtype=float)}
-    if not isinstance(pipeline, ChangeRegressor):
+    if not isinstance(pipeline, (ChangeRegressor, RunTimeChangeRegressor)):
         val = {f"model__{k}": v for k, v in val.items()}
     return pipeline.fit(fit_rows[cols], fit_rows[target].to_numpy(dtype=float), **val)
+
+
+def _needs_frame(model) -> bool:
+    """Candidates that read columns beyond the feature set (all known before arrival)."""
+    return isinstance(model, BASELINES + (RunTimeChangeRegressor,))
 
 
 def _inputs(model, frame: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     """What a fitted candidate predicts from: learned models see only their
     feature columns; baselines may also read the prediction moment and the
     timetable (``known_at``, ``scheduled_epoch``), both known before arrival."""
-    return frame if isinstance(model, BASELINES) else frame[cols]
+    return frame if _needs_frame(model) else frame[cols]
 
 
 def _pipeline(model, numeric: list[str], categorical: list[str]):
@@ -269,6 +283,9 @@ def _pipeline(model, numeric: list[str], categorical: list[str]):
         return model
     if isinstance(model, ChangeRegressor):
         return ChangeRegressor(_pipeline(model.estimator, numeric, categorical))
+    if isinstance(model, RunTimeChangeRegressor):
+        return RunTimeChangeRegressor(_pipeline(model.estimator, numeric + [LOOKUP_FEATURE], categorical),
+                                      columns=numeric + categorical, folds=model.folds)
     return Pipeline([
         ("prep", make_preprocessor(numeric, categorical,
                                    scale=isinstance(model, SCALED_MODELS),
@@ -323,13 +340,13 @@ class PersistenceRegressor:
 
 
 class PersistenceClassifier:
-    """Predict "late" iff the previous stop was already late.
+    """Predict "late" iff the train was already late at its previous stop.
 
     The bar the learned classifiers must clear: because delay is autocorrelated
     along a trip, a high F1 on its own means little -- the lift over this matters.
     """
 
-    def __init__(self, column: str = "prev_delay_1", threshold: float = 300.0):
+    def __init__(self, column: str = "prev_lateness_1", threshold: float = 300.0):
         self.column = column
         self.threshold = threshold
 
@@ -440,6 +457,60 @@ class RunTimeRegressor:
         return np.where(np.isnan(predicted), self.fallback_.predict(X), predicted)
 
 
+#: The run-time lookup's prediction, given to the correcting model as a feature.
+LOOKUP_FEATURE = "run_time_lookup"
+
+
+class RunTimeChangeRegressor(BaseEstimator, RegressorMixin):
+    """The run-time lookup, plus a learned correction to it.
+
+    :class:`ChangeRegressor` corrects persistence, which does not know when the
+    train left its last stop; this corrects :class:`RunTimeRegressor`, which does.
+    The lookup is also passed in as a feature. Its training-row predictions are
+    cross-fitted by service date: a median fitted on the very rows it predicts
+    already contains their answers, and the correction would learn from that.
+    """
+
+    def __init__(self, estimator, columns=None, folds: int = 5):
+        self.estimator = estimator
+        self.columns = columns
+        self.folds = folds
+
+    def _with_lookup(self, X, lookup):
+        return X[self.columns].assign(**{LOOKUP_FEATURE: lookup})
+
+    def _out_of_fold(self, X, y) -> np.ndarray:
+        dates = X["service_date"].astype(str).to_numpy()
+        unique = np.unique(dates)
+        if len(unique) < 2:
+            return RunTimeRegressor().fit(X, y).predict(X)
+        fold_of = dict(zip(unique, np.arange(len(unique)) % min(self.folds, len(unique))))
+        fold = np.array([fold_of[d] for d in dates])
+        out = np.empty(len(X))
+        for f in np.unique(fold):
+            held = fold == f
+            out[held] = RunTimeRegressor().fit(X[~held], y[~held]).predict(X[held])
+        return out
+
+    def fit(self, X, y, X_val=None, y_val=None):
+        y = np.asarray(y, dtype=float)
+        self.base_ = RunTimeRegressor().fit(X, y)
+        lookup = self._out_of_fold(X, y)
+        extra = {}
+        if X_val is not None:
+            val_lookup = self.base_.predict(X_val)
+            extra = {"X_val": self._with_lookup(X_val, val_lookup),
+                     "y_val": np.asarray(y_val, dtype=float) - val_lookup}
+            if isinstance(self.estimator, Pipeline):
+                extra = {f"model__{k}": v for k, v in extra.items()}
+        self.estimator_ = clone(self.estimator).fit(self._with_lookup(X, lookup), y - lookup, **extra)
+        return self
+
+    def predict(self, X):
+        lookup = self.base_.predict(X)
+        return lookup + self.estimator_.predict(self._with_lookup(X, lookup))
+
+
 def _change_boost(quick: bool) -> ChangeRegressor:
     """The headline model: absolute-error boosting on the change in delay."""
     return ChangeRegressor(_boost(quick, loss="absolute_error"))
@@ -480,6 +551,7 @@ def regression_models(quick: bool, full: bool = False) -> dict[str, object]:
         "hist_gradient_boosting": _boost(quick),
         "hist_gradient_boosting_mae": _boost(quick, loss="absolute_error"),
         "hist_gradient_boosting_change": _change_boost(quick),
+        "hist_gradient_boosting_run_time": RunTimeChangeRegressor(_boost(quick, loss="absolute_error")),
     }
     if full:
         candidates["random_forest"] = RandomForestRegressor(
@@ -589,7 +661,7 @@ def run_classification(split: Split, *, quick: bool, full: bool = False
     Returns the comparison table, the fitted models, and each model's test-set
     probabilities (kept so the ROC / PR artefact does not re-score every model).
     """
-    numeric, categorical = _columns(split.train)
+    numeric, categorical = _columns(split.train, lateness=True)
     y_test = split.test["late"].astype(int).to_numpy()
 
     rows: list[dict] = []
@@ -740,7 +812,7 @@ def run_calendar_diagnostic(split: Split, *, quick: bool, cache: dict | None = N
 # ---------------------------------------------------------------------------
 def day_type(frame: pd.DataFrame) -> np.ndarray:
     """Label each row's route-day "disrupted" or "normal" (see DISRUPTED_SHARE)."""
-    late_share = (frame["delay_seconds"] > 600).groupby(
+    late_share = (frame["lateness_seconds"] > 600).groupby(
         [frame["route_id"].astype(str), frame["service_date"]]).transform("mean")
     return np.where(late_share >= DISRUPTED_SHARE, "disrupted", "normal")
 
@@ -814,6 +886,8 @@ def run_backtest(frame: pd.DataFrame, *, quick: bool) -> pd.DataFrame:
             predicted, level_pred = model.predict(X), level.predict(X)
             persistence = PersistenceRegressor().fit(train).predict(test)
             run_time = RunTimeRegressor().fit(train, train["delay_seconds"]).predict(test)
+            corrected = _fit(RunTimeChangeRegressor(_boost(quick, loss="absolute_error")), train,
+                             numeric, categorical, "delay_seconds").predict(test)
             # Arrivals within an hour of the timetable: is the change model's win
             # only on the few rows logged hours off schedule?
             within = np.abs(y) <= 3600
@@ -822,6 +896,7 @@ def run_backtest(frame: pd.DataFrame, *, quick: bool) -> pd.DataFrame:
                 "train_days": int(train["service_date"].nunique()), "n_test": len(test),
                 "persistence_mae": _mae(persistence, y),
                 "run_time_mae": _mae(run_time, y),
+                "run_time_model_mae": _mae(corrected, y),
                 "model_mae": _mae(predicted, y),
                 "level_model_mae": _mae(level_pred, y),
                 "persistence_mae_within_1h": _mae(persistence[within], y[within]),
@@ -936,7 +1011,8 @@ def run(*, quick: bool = False, full: bool = False) -> dict:
         analysis = error_analysis(split.test, test_predictions)
         analysis["by_run_start"] = run_start_comparison(split.test, {
             name: reg_fitted[name].predict(_inputs(reg_fitted[name], split.test, numeric + categorical))
-            for name in ("baseline_persistence", "baseline_run_time", chosen_name)})
+            for name in ("baseline_persistence", "baseline_run_time", chosen_name,
+                         "hist_gradient_boosting_run_time")})
 
         log.info("--- feature importance (%s) ---", chosen_name)
         importance = compute_importance(chosen, split.test, numeric, categorical)
@@ -955,7 +1031,7 @@ def run(*, quick: bool = False, full: bool = False) -> dict:
     predictions = split.test[
         ["service_date_parsed", "trip_id", "stop_id", "station_name", "route_id",
          "trunk_route_id", "scheduled_hour", "stop_sequence",
-         "delay_seconds", "late", "prev_delay_1"]
+         "delay_seconds", "lateness_seconds", "late", "prev_delay_1"]
     ].assign(predicted_delay=test_predictions,
              persistence_delay=reg_fitted["baseline_persistence"].predict(X_test),
              level_predicted_delay=reg_fitted["hist_gradient_boosting_mae"].predict(X_test))

@@ -143,12 +143,49 @@ class TestBuildRules:
         assert len(frame) == 4
         assert frame["delay_outlier"].all()
 
-    def test_labels_late_beyond_threshold(self):
-        rows = make_raw_trip("9005", SERVICE_DATE, delay_schedule=(0, 301, 0, 0, 0))
+    def test_late_means_riders_waited_over_five_minutes_longer_than_planned(self):
+        # Stop 1 comes 301 s after the train in front against a planned 480 s gap
+        # plus 301: late. Stop 2 is an hour behind the timetable, but its gap is as
+        # planned, so riders saw a normal train (the timetable-drift case).
+        rows = make_raw_trip("9005", SERVICE_DATE, delay_schedule=(0, 0, 3600, 3600, 3600))
+        rows[1]["headway_branch_seconds"] = 480.0 + 301
         frame = clean.build(raw_frame=pd.DataFrame(rows),
                             stop_lookup=pd.DataFrame({"stop_id": [], "stop_name": []}))
-        assert frame["late"].sum() == 1
-        assert frame.loc[frame["late"], "delay_seconds"].iloc[0] == 301
+        assert frame["late"].tolist() == [False, True, False, False, False]
+        assert frame["lateness_seconds"].tolist() == [0.0, 301.0, 0.0, 0.0, 0.0]
+
+    def test_lateness_falls_back_to_the_timetable_without_a_gap(self):
+        rows = make_raw_trip("9006", SERVICE_DATE, delay_schedule=(0, 400, 400, 400, 400))
+        for row in rows:
+            row["headway_branch_seconds"] = row["headway_trunk_seconds"] = None
+        frame = clean.build(raw_frame=pd.DataFrame(rows),
+                            stop_lookup=pd.DataFrame({"stop_id": [], "stop_name": []}))
+        assert frame["lateness_seconds"].tolist() == frame["delay_seconds"].tolist()
+        assert frame["late"].tolist() == [False, True, True, True, True]
+
+    def test_a_last_stop_without_a_departure_gap_uses_the_arrival_gap(self):
+        # The source has no gap at a trip's last stop (the train does not depart).
+        # B is planned 480 s behind A and reaches the last stop 400 s later than that.
+        rows = (make_raw_trip("A", SERVICE_DATE)
+                + make_raw_trip("B", SERVICE_DATE, start_seconds=22_680 + 480,
+                                delay_schedule=(0, 30, 60, 90, 400 + 120)))
+        for row in rows:
+            if row["stop_id"] == "stop-4":
+                row["headway_branch_seconds"] = row["headway_trunk_seconds"] = None
+        frame = clean.build(raw_frame=pd.DataFrame(rows),
+                            stop_lookup=pd.DataFrame({"stop_id": [], "stop_name": []}))
+        last = frame[frame["stop_id"] == "stop-4"].set_index("trip_id")
+        assert last.loc["B", "extra_wait_seconds"] == 400.0
+        assert bool(last.loc["B", "late"])
+        # A is the first train there: no gap at all, so the timetable is used.
+        assert pd.isna(last.loc["A", "extra_wait_seconds"])
+        assert last.loc["A", "lateness_seconds"] == last.loc["A", "delay_seconds"]
+
+    def test_branch_gap_wins_over_the_trunk_gap(self):
+        frame = pd.DataFrame({"headway_branch_seconds": [900.0], "headway_trunk_seconds": [300.0],
+                              "scheduled_headway_branch": [600.0], "scheduled_headway_trunk": [300.0],
+                              "delay_seconds": [0.0]})
+        assert clean.lateness(frame).iloc[0] == 300.0
 
     def test_does_not_write_cache_for_injected_frames(self, raw_frame, stop_lookup,
                                                      tmp_path, monkeypatch):

@@ -49,11 +49,14 @@ class TestRanges:
         assert over == pytest.approx(10.0)
 
 
-def test_day_type_flags_route_days_with_many_big_delays():
+def test_day_type_flags_route_days_where_riders_waited_long():
     frame = pd.DataFrame({
         "route_id": ["Red"] * 5 + ["Blue"] * 5,
         "service_date": [1] * 10,
-        "delay_seconds": [700, 0, 0, 0, 0] + [0] * 5,   # Red: 20% over 10 min
+        # Red: 20% of arrivals kept riders waiting 10+ min extra. Blue: an hour
+        # behind the timetable all day, but at the planned spacing (drift).
+        "lateness_seconds": [700, 0, 0, 0, 0] + [0] * 5,
+        "delay_seconds": [700, 0, 0, 0, 0] + [3600] * 5,
     })
     assert model_delay.day_type(frame).tolist() == ["disrupted"] * 5 + ["normal"] * 5
 

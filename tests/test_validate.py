@@ -100,3 +100,12 @@ class TestWindowChecks:
         window = (date(2026, 6, 1), date(2026, 6, 1))
         assert _failed(validate.check_weather(_weather(48), window)) == set()
         assert "window hours without weather" in _failed(validate.check_weather(_weather(24), window))
+
+    def test_alerts_archive_must_reach_the_end_of_the_window(self):
+        from datetime import date
+
+        window = (date(2026, 6, 1), date(2026, 6, 30))
+        stale = pd.DataFrame({"last_modified_datetime": pd.to_datetime(["2026-06-20 09:00"])})
+        fresh = pd.DataFrame({"last_modified_datetime": pd.to_datetime(["2026-06-30 23:50"])})
+        assert "window days after the alerts archive ends" in _failed(validate.check_alerts(stale, window))
+        assert _failed(validate.check_alerts(fresh, window)) == set()

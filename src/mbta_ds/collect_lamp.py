@@ -54,6 +54,8 @@ PERFORMANCE_COLUMNS = (
 )
 
 INDEX_PATH = config.RAW_DIR / "lamp_index.csv"
+ALERTS_PATH = config.ALERTS_RAW_DIR / "LAMP_RT_ALERTS.parquet"
+STOPS_PATH = config.STATIC_RAW_DIR / "LAMP_static_stops.parquet"
 
 
 # ---------------------------------------------------------------------------
@@ -221,15 +223,25 @@ def load_performance(
 # ---------------------------------------------------------------------------
 # Static reference tables and alerts
 # ---------------------------------------------------------------------------
-def download_static(session: requests.Session | None = None, *, workers: int = 4) -> list[Path]:
-    """Download the GTFS-derived static tables (routes, stops, trips, stop_times)."""
+def covers(path: Path, end: date) -> bool:
+    """Whether a cached archive can hold records up to ``end``.
+
+    The alerts and stops tables are snapshots of an ever-growing archive, so one
+    downloaded on or before the window's last day cannot cover the whole window.
+    """
+    return path.exists() and date.fromtimestamp(path.stat().st_mtime) > end
+
+
+def download_static(session: requests.Session | None = None, *, workers: int = 4,
+                    refresh: bool = False) -> list[Path]:
+    """Download the static tables in :data:`config.STATIC_TABLES` (the stops table)."""
     config.STATIC_RAW_DIR.mkdir(parents=True, exist_ok=True)
     session = session or make_session()
 
     def _one(table: str) -> Path:
         url = config.STATIC_TABLE_URL_TMPL.format(table=table)
         dest = config.STATIC_RAW_DIR / f"{table}.parquet"
-        return download(url, dest, make_session())
+        return download(url, dest, make_session(), skip_if_exists=not refresh)
 
     paths: list[Path] = []
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -245,13 +257,12 @@ def download_static(session: requests.Session | None = None, *, workers: int = 4
     return paths
 
 
-def download_alerts(session: requests.Session | None = None) -> Path | None:
+def download_alerts(session: requests.Session | None = None, *, refresh: bool = False) -> Path | None:
     """Download the archived GTFS-Realtime alerts feed (text + cause/effect labels)."""
     config.ALERTS_RAW_DIR.mkdir(parents=True, exist_ok=True)
     session = session or make_session()
-    dest = config.ALERTS_RAW_DIR / "LAMP_RT_ALERTS.parquet"
     try:
-        return download(config.ALERTS_URL, dest, session)
+        return download(config.ALERTS_URL, ALERTS_PATH, session, skip_if_exists=not refresh)
     except Exception as exc:  # noqa: BLE001
         log.warning("failed to download alerts: %s", exc)
         return None
@@ -271,13 +282,12 @@ def load_static(table: str, *, columns: list[str] | None = None) -> pd.DataFrame
 
 def load_alerts(*, columns: list[str] | None = None) -> pd.DataFrame:
     """Load the archived alerts feed (~5M rows back to 2019; pass ``columns``)."""
-    path = config.ALERTS_RAW_DIR / "LAMP_RT_ALERTS.parquet"
-    if not path.exists():
-        raise FileNotFoundError(f"{path} missing; run the `collect` stage first")
+    if not ALERTS_PATH.exists():
+        raise FileNotFoundError(f"{ALERTS_PATH} missing; run the `collect` stage first")
     if columns is not None:
-        available = set(pq.read_schema(path).names)
+        available = set(pq.read_schema(ALERTS_PATH).names)
         columns = [c for c in columns if c in available]
-    return pd.read_parquet(path, columns=columns)
+    return pd.read_parquet(ALERTS_PATH, columns=columns)
 
 
 def collect(
@@ -287,11 +297,14 @@ def collect(
     end: date | None = None,
     include_static: bool = True,
     include_alerts: bool = True,
+    refresh: bool = False,
 ) -> dict:
     """Full collection stage for this source. Returns a small summary dict.
 
     ``start``/``end`` override the length-based window; the CLI uses this to
-    download exactly the window shared with the ridership dataset.
+    download exactly the window shared with the ridership dataset. The stops and
+    alerts snapshots are re-downloaded when ``refresh`` is set or when the cached
+    copy predates the window's end (:func:`covers`).
     """
     config.ensure_dirs()
     session = make_session()
@@ -311,7 +324,9 @@ def collect(
         "coverage": coverage(index),
     }
     if include_static:
-        summary["static_files"] = len(download_static(session))
+        summary["static_files"] = len(download_static(
+            session, refresh=refresh or not covers(STOPS_PATH, end)))
     if include_alerts:
-        summary["alerts"] = download_alerts(session) is not None
+        summary["alerts"] = download_alerts(
+            session, refresh=refresh or not covers(ALERTS_PATH, end)) is not None
     return summary

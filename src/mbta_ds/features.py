@@ -40,12 +40,13 @@ QUICK_MAX_ROWS = 150_000
 #: Window for the line-wide lateness features.
 LINE_WINDOW_SECONDS = 900
 
-#: Columns that identify a row but must never be used as features.
+#: Columns that identify a row, carried for joins and reports. `stop_sequence` is
+#: also a schedule feature (it is fixed by the timetable); the others never are.
 KEY_COLUMNS = (
     "service_date", "service_date_parsed", "trip_id", "stop_id",
     "vehicle_id", "stop_sequence",
 )
-TARGET_COLUMNS = ("delay_seconds", "late", "delay_outlier")
+TARGET_COLUMNS = ("delay_seconds", "lateness_seconds", "late", "delay_outlier")
 
 CATEGORICAL_FEATURES = ("route_id", "trunk_route_id", "direction_id", "station_name")
 
@@ -118,7 +119,17 @@ FEATURE_GROUPS: dict[str, tuple[str, ...]] = {
         "vehicle_prev_trip_delay",
         "vehicle_layover_seconds",
     ),
+    # How much longer than planned riders waited for this train at its last stop
+    # (`clean.lateness`). Used by the yes/no "late" models, which are judged on
+    # that measure; the delay regression is judged on the timetable and does not
+    # take it, so its results are unchanged by the lateness definition.
+    "lateness": (
+        "prev_lateness_1",
+    ),
 }
+
+#: Feature groups the timetable-delay regression does not use (see "lateness").
+LATENESS_ONLY_GROUPS = ("lateness",)
 
 #: A train's previous trip may appear to end up to this long after its next trip
 #: starts (terminal timestamp noise); beyond it, the two cannot be the same train.
@@ -177,6 +188,8 @@ def add_propagation_features(frame: pd.DataFrame, horizon: int = 1) -> pd.DataFr
     out["prev_headway_seconds"] = group["headway_trunk_seconds"].shift(k)
     # Slope of delay over the last two known stops: losing or gaining time?
     out["delay_trend"] = out["prev_delay_1"] - out["prev_delay_2"]
+    if "lateness_seconds" in out:
+        out["prev_lateness_1"] = group["lateness_seconds"].shift(k)
     out["scheduled_seconds_ahead"] = (
         out["scheduled_arrival_time"] - group["scheduled_arrival_time"].shift(k)
     )
@@ -229,8 +242,9 @@ def attach_network(frame: pd.DataFrame) -> pd.DataFrame:
       reach this row's station, and how long before ``known_at`` it did so. A
       long age means a gap: often a blockage further up the line.
     * ``line_late_share_15m`` / ``line_arrivals_15m`` -- the share of arrivals on
-      the line more than 5 minutes late in the preceding 15 minutes, and how
-      many arrivals there were.
+      the line more than 5 minutes behind the timetable in the preceding 15
+      minutes, and how many arrivals there were. It is an input to the timetable
+      delay regression, so it stays on the timetable measure.
     """
     line = ["trunk_route_id", "direction_id"]
     events = (frame.loc[frame["stop_timestamp"].notna(),

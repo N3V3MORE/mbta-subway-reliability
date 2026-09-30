@@ -4,14 +4,13 @@ The delay model predicts the *typical* outcome, which is exactly what fails on b
 days. This stage asks the two questions a rider has when things go wrong, k stops
 before the train reaches their station:
 
-* **Early warning** -- the probability the train is more than 10 minutes late on
-  arrival. About 9% of arrivals are, but nearly all of those trains are *already*
-  that late (delay is sticky), so any method catches them. The honest test is
-  **onsets**: trains under 5 minutes late now that end up 10+ minutes late (about
-  1,200 one stop ahead and 4,000 five stops ahead per test period). They are
-  scored apart.
-* **Ranges** -- a 10th-90th percentile band for the delay, judged by how often the
-  truth falls inside (it should be ~80%) and how wide the band is.
+* **Early warning** -- the probability riders wait 10+ minutes longer than
+  planned for the train (``clean.lateness``). Many such trains are *already* that
+  late at their last stop, so any method catches them. The honest test is
+  **onsets**: trains under 5 minutes late now that end up 10+ minutes late. They
+  are scored apart.
+* **Ranges** -- a 10th-90th percentile band for the timetable delay, judged by how
+  often the truth falls inside (it should be ~80%) and how wide the band is.
 """
 
 from __future__ import annotations
@@ -31,7 +30,7 @@ log = logging.getLogger(__name__)
 
 METRICS_PATH = config.PROCESSED_DIR / "tail_metrics.json"
 
-BIG_DELAY_SECONDS = 600               # "10+ minutes late"
+BIG_DELAY_SECONDS = 600               # "10+ minutes late", on the rider measure
 ONSET_BELOW_SECONDS = config.LATE_THRESHOLD_SECONDS   # "on time now": under 5 min late
 HORIZONS = (1, 5)
 QUANTILES = (0.1, 0.5, 0.9)
@@ -101,15 +100,18 @@ def evaluate_horizon(k: int, *, quick: bool) -> dict:
     """Fit and score the early-warning and range models for ``k`` stops ahead."""
     frame = features.build(horizon=k, no_cache=True,
                            max_rows=features.QUICK_MAX_ROWS if quick else None)
-    frame["big_delay"] = (frame["delay_seconds"] > BIG_DELAY_SECONDS).astype(int)
+    frame["big_delay"] = (frame["lateness_seconds"] > BIG_DELAY_SECONDS).astype(int)
     split = md.temporal_split(frame)
     train = features.stratified_sample(split.train, md.TRAIN_ROWS // 4 if quick else md.TRAIN_ROWS,
                                        md.SEED)
     test = split.test
-    numeric, categorical = md._columns(train)
+    # The warning is judged on rider lateness, so it may use it; the ranges are
+    # for the timetable delay, like the regression, and do not.
+    numeric, categorical = md._columns(train, lateness=True)
+    range_numeric = md._columns(train)[0]
     X = test[numeric + categorical]
     y = test["big_delay"].to_numpy()
-    onset = (test["prev_delay_1"] < ONSET_BELOW_SECONDS).to_numpy()
+    onset = (test["prev_lateness_1"] < ONSET_BELOW_SECONDS).to_numpy()
 
     # Averaged over three seeds: with ~1,200 onsets, which few trains one model
     # ranks highest is largely luck (single seeds are reported alongside).
@@ -125,8 +127,8 @@ def evaluate_horizon(k: int, *, quick: bool) -> dict:
     proba = np.mean(per_seed, axis=0)
     # Two ways of aiming at onsets directly, scored like the rest: train only on
     # trains under 5 minutes late now, or target "loses 5+ minutes from here".
-    on_time = train[train["prev_delay_1"] < ONSET_BELOW_SECONDS]
-    train = train.assign(loses_5min=((train["delay_seconds"] - train["prev_delay_1"])
+    on_time = train[train["prev_lateness_1"] < ONSET_BELOW_SECONDS]
+    train = train.assign(loses_5min=((train["lateness_seconds"] - train["prev_lateness_1"])
                                      > ONSET_BELOW_SECONDS).astype(int))
     scores = {
         "model": proba,
@@ -134,8 +136,9 @@ def evaluate_horizon(k: int, *, quick: bool) -> dict:
         "model trained on on-time trains only": classifier(on_time, "big_delay", md.SEED),
         "model targeting a 5+ minute loss": classifier(train, "loses_5min", md.SEED),
         # Baselines rank trains by one signal each; higher means "more likely late".
-        "baseline: how late the train is now": test["prev_delay_1"].to_numpy(dtype=float),
-        "baseline: how late the line is now": test["line_late_share_15m"].fillna(0).to_numpy(),
+        "baseline: how late the train is now": test["prev_lateness_1"].to_numpy(dtype=float),
+        "baseline: share of the line behind the timetable":
+            test["line_late_share_15m"].fillna(0).to_numpy(),
     }
     warning = [{"horizon_stops": k, "method": name, "subset": subset,
                 **warning_metrics(y[mask], score[mask])}
@@ -152,10 +155,10 @@ def evaluate_horizon(k: int, *, quick: bool) -> dict:
     fit_rows = train[train["service_date"] < calibration_start]
     cal_rows = train[train["service_date"] >= calibration_start]
     models = {level: md._fit(md.ChangeRegressor(md._boost(quick, loss="quantile", quantile=level)),
-                             fit_rows, numeric, categorical, "delay_seconds")
+                             fit_rows, range_numeric, categorical, "delay_seconds")
               for level in QUANTILES}
-    q = {level: m.predict(X) for level, m in models.items()}
-    cal_cols = cal_rows[numeric + categorical]
+    q = {level: m.predict(test[range_numeric + categorical]) for level, m in models.items()}
+    cal_cols = cal_rows[range_numeric + categorical]
     margin = conformal_margin(cal_rows["delay_seconds"].to_numpy(),
                               models[0.1].predict(cal_cols), models[0.9].predict(cal_cols),
                               QUANTILES[-1] - QUANTILES[0])

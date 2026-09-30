@@ -10,6 +10,7 @@ Usage::
     python -m mbta_ds.cli train
     python -m mbta_ds.cli cluster
     python -m mbta_ds.cli figures
+    python -m mbta_ds.cli export-map
     python -m mbta_ds.cli all        --days 90
 
 Every stage is idempotent and reads from the cache written by the previous one.
@@ -56,8 +57,9 @@ def stage_collect(args: argparse.Namespace) -> dict:
     # archive and ridership is the shorter one, so the window ends at the
     # earlier of the two publication fronts.
     # ------------------------------------------------------------------
-    # "latest" must see today's catalogue, not the one cached on the first run.
-    index = collect_lamp.fetch_index(session, refresh=args.refresh or args.end == "latest")
+    # The catalogue is small and grows daily; a stale copy would silently end
+    # the window early, so it is always re-read here.
+    index = collect_lamp.fetch_index(session, refresh=True)
     lamp_first, lamp_last = collect_lamp.coverage(index)
 
     window_end = lamp_last
@@ -101,6 +103,7 @@ def stage_collect(args: argparse.Namespace) -> dict:
         end=window_end,
         include_static=not args.skip_static,
         include_alerts=not args.skip_alerts,
+        refresh=args.refresh,
     )
 
     if ridership_coverage is not None:
@@ -206,6 +209,18 @@ def stage_report(args: argparse.Namespace) -> dict:
     return report.build()
 
 
+def stage_export_map(args: argparse.Namespace) -> dict:
+    from . import export_map
+
+    days = export_map.DEFAULT_DAYS
+    if args.day:
+        # "[run:]YYYY-MM-DD"; a date from the default list keeps its label.
+        known = {(run, day): (label, note) for run, day, label, note in days}
+        days = tuple((run, day, *known.get((run, day), (day, "")))
+                     for run, _, day in (item.rpartition(":") for item in args.day))
+    return export_map.run(days, refresh=args.refresh)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m mbta_ds.cli",
@@ -272,6 +287,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("story", help="write reports/story.html: the results in plain words and charts")
     p.set_defaults(func=stage_story)
+
+    p = sub.add_parser("export-map", help="write the network and replay days for the 3D map in map/")
+    p.add_argument("--day", action="append", metavar="[RUN:]DATE",
+                   help="replay day to export, e.g. 2026-06-12 or winter:2026-02-23 "
+                        "(repeatable; default: a spring, a storm and a holdout day)")
+    p.add_argument("--refresh", action="store_true", help="re-download line shapes and colours")
+    p.set_defaults(func=stage_export_map)
 
     p = sub.add_parser("all", help="run every stage in order")
     p.add_argument("--days", type=int, default=90, help="service days of history")

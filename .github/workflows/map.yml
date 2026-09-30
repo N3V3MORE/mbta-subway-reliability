@@ -1,0 +1,36 @@
+# The 3D map in map/: lint, unit tests and a production build.
+# Runs only when the map changes, so pipeline-only pushes stay Python-only.
+
+name: map
+
+on:
+  push:
+    branches: ["**"]
+    paths: ["map/**", ".github/workflows/map.yml"]
+  pull_request:
+    paths: ["map/**", ".github/workflows/map.yml"]
+  workflow_dispatch:
+
+jobs:
+  map:
+    name: lint, test, build
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: map
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: map/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build

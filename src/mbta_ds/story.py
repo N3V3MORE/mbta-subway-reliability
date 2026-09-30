@@ -86,7 +86,8 @@ PLAIN_FEATURES = {
     "prev_delay_2": "How late it was two stops back",
     "leader_delay": "How late the train in front is",
 }
-BANDS = (("On time (under 1 min late)", -np.inf, 60), ("1-5 min late", 60, 300),
+#: Right-closed, so "5-10" and "10+" together are exactly the ``late`` label (> 5 min).
+BANDS = (("On time (up to 1 min late)", -np.inf, 60), ("1-5 min late", 60, 300),
          ("5-10 min late", 300, 600), ("10+ min late", 600, np.inf))
 SERVICE_HOURS = list(range(5, 24)) + [0, 1]
 
@@ -100,9 +101,12 @@ def _arrivals() -> pd.DataFrame:
 
 
 def delay_bands(arrivals: pd.DataFrame) -> pd.DataFrame:
-    """Share of each line's arrivals in each lateness band, most-late line last."""
+    """Share of each line's arrivals in each lateness band, most-late line last.
+
+    Lateness is how much longer than planned riders waited (``clean.lateness``).
+    """
     edges = [b[1] for b in BANDS] + [np.inf]
-    band = pd.cut(arrivals["delay_seconds"], edges, labels=[b[0] for b in BANDS], right=False)
+    band = pd.cut(arrivals["lateness_seconds"], edges, labels=[b[0] for b in BANDS], right=True)
     table = pd.crosstab(arrivals["route_id"].astype(str), band, normalize="index")
     # A band no arrival fell into is still a band: keep it, at 0%.
     table = table.reindex(columns=[b[0] for b in BANDS], fill_value=0.0)
@@ -111,9 +115,8 @@ def delay_bands(arrivals: pd.DataFrame) -> pd.DataFrame:
 
 
 def late_by_hour(arrivals: pd.DataFrame, min_arrivals: int = 200) -> pd.DataFrame:
-    """Line x hour share of arrivals 5+ minutes late; thin cells left blank."""
-    late = arrivals["delay_seconds"] >= config.LATE_THRESHOLD_SECONDS
-    grouped = late.groupby([arrivals["route_id"].astype(str), arrivals["scheduled_hour"]])
+    """Line x hour share of arrivals more than 5 minutes late; thin cells left blank."""
+    grouped = arrivals["late"].groupby([arrivals["route_id"].astype(str), arrivals["scheduled_hour"]])
     share = grouped.mean().unstack()
     share = share.where(grouped.size().unstack() >= min_arrivals)
     share = share.reindex(columns=SERVICE_HOURS)
@@ -211,8 +214,7 @@ def early_warning() -> pd.DataFrame | None:
 
 
 def late_stations(arrivals: pd.DataFrame, top: int = 12, min_arrivals: int = 2_000) -> pd.DataFrame:
-    late = (arrivals["delay_seconds"] >= config.LATE_THRESHOLD_SECONDS)
-    g = late.groupby(arrivals["station_name"].astype(str)).agg(["mean", "size"])
+    g = arrivals["late"].groupby(arrivals["station_name"].astype(str)).agg(["mean", "size"])
     g = g[g["size"] >= min_arrivals].sort_values("mean", ascending=False).head(top)
     return g.rename(columns={"mean": "late_share", "size": "arrivals"})
 
@@ -285,7 +287,7 @@ def fig_late_by_hour(share: pd.DataFrame) -> go.Figure:
         z=share.to_numpy() * 100, x=labels, y=share.index, colorscale=LIGHT["seq"],
         zmin=0, xgap=2, ygap=2, hoverongaps=False,
         colorbar=dict(ticksuffix="%", thickness=10, outlinewidth=0, tickfont=dict(color=LIGHT["muted"])),
-        hovertemplate="%{y}, %{x}: %{z:.0f}% of arrivals 5+ min late<extra></extra>"),
+        hovertemplate="%{y}, %{x}: %{z:.0f}% of arrivals more than 5 min late<extra></extra>"),
         **{"colorscale": (LIGHT["seq"], DARK["seq"]),
            "colorbar.tickfont.color": (LIGHT["muted"], DARK["muted"])}))
     fig = _layout(fig, 60 + 34 * len(share))
@@ -396,11 +398,11 @@ def fig_stations(table: pd.DataFrame) -> go.Figure:
         marker=dict(color=LIGHT["blue"]),
         text=[f"{v:.0%}" for v in table["late_share"]], textposition="outside",
         textfont=dict(color=LIGHT["text"]), cliponaxis=False,
-        hovertemplate="%{y}: %{x:.0f}% of arrivals 5+ min late<extra></extra>"),
+        hovertemplate="%{y}: %{x:.0f}% of arrivals more than 5 min late<extra></extra>"),
         **{"marker.color": (LIGHT["blue"], DARK["blue"]),
            "textfont.color": (LIGHT["text"], DARK["text"])}))
     fig = _layout(fig, 60 + 50 * len(table), bargap=0.6, showlegend=False)
-    fig.update_xaxes(ticksuffix="%", title="Arrivals 5+ min late")
+    fig.update_xaxes(ticksuffix="%", title="Arrivals more than 5 min late")
     fig.update_yaxes(autorange="reversed")
     return _labels_above(fig, table.index, table["late_share"] * 100)
 
@@ -583,7 +585,7 @@ def build() -> dict:
     winter, top, warning = winter_days(), importance(), early_warning()
     stations = late_stations(arrivals)
 
-    on_time = float((arrivals["delay_seconds"] < config.LATE_THRESHOLD_SECONDS).mean())
+    on_time = 1 - float(arrivals["late"].mean())
     ours = errors.set_index("method")["error_seconds"]
     model, guess = ours["Our model"], ours["Assume it stays as late as it is now"]
     winter_mae = None
@@ -618,15 +620,19 @@ def build() -> dict:
     sections = [
         _section("How late do trains run?",
                  f"Most arrivals are close to on time; the {worst_line} line is late most often",
-                 f"Each bar is one line's arrivals, split by how late they were against the "
-                 f"timetable. The stronger the blue, the later. The {best_line} line keeps "
-                 f"closest to schedule.",
+                 f"Each bar is one line's arrivals, split by how much longer than planned "
+                 f"riders waited for them: the gap behind the train in front, against the "
+                 f"scheduled gap. The stronger the blue, the later. The {best_line} line keeps "
+                 f"closest to plan. (Measured against the timetable instead, frequent lines "
+                 f"look far worse than riders find them: trains are paired with timetable slots "
+                 f"in order, so a line running a little sparse drifts further \"behind\" all "
+                 f"day.)",
                  fig_delay_bands(bands), _numbers(bands, pct)),
         _section("When is it worst?",
                  f"{worst_two} run late at every hour; the single worst hour is {peak_label} "
                  f"on the {peak[0]} line",
                  "Each square is one line in one hour of the day, shaded by the share of trains "
-                 "arriving 5 or more minutes late. The stronger the blue, the more late trains; blank squares "
+                 "more than 5 minutes late. The stronger the blue, the more late trains; blank squares "
                  "had too few trains to say.",
                  fig_late_by_hour(hours),
                  _numbers((hours * 100).round(0).rename(columns=lambda h: f"{h}:00"))),
@@ -694,8 +700,9 @@ def build() -> dict:
     sections.append(_section(
         "Which stations see the most late trains?",
         f"{stations.index[0]} tops the list",
-        f"Share of arrivals 5 or more minutes late at each station (stations with at least "
-        f"2,000 arrivals). A station's figure reflects every line that calls there.",
+        f"Share of arrivals where riders waited more than 5 minutes longer than planned, at "
+        f"each station with at least 2,000 arrivals. A station's figure reflects every line "
+        f"that calls there.",
         fig_stations(stations),
         _numbers(stations.assign(late_share=(stations["late_share"] * 100).round(1))
                  .rename(columns={"late_share": "Late (%)", "arrivals": "Arrivals"}))))

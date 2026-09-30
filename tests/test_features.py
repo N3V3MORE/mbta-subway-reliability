@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from mbta_ds import config, features
+from mbta_ds import clean, config, features
 
 from .conftest import SERVICE_DATE, make_raw_trip
 
@@ -404,11 +404,18 @@ class TestFeatureGroups:
         columns = features.all_feature_columns(groups=("categorical",))
         assert columns == list(features.CATEGORICAL_FEATURES)
 
-    def test_ablation_order_covers_every_group_exactly_once_at_the_end(self):
+    def test_ablation_order_covers_every_regression_group_at_the_end(self):
         from mbta_ds.model_delay import ABLATION_ORDER
 
         final = set(ABLATION_ORDER[-1][1])
-        assert final == set(features.FEATURE_GROUPS) | {"categorical"}
+        regression = set(features.FEATURE_GROUPS) - set(features.LATENESS_ONLY_GROUPS)
+        assert final == regression | {"categorical"}
+
+    def test_previous_lateness_is_the_last_stop_not_this_one(self, clean_frame):
+        out = features.add_propagation_features(clean_frame)
+        for _, trip in out.groupby(clean.RUN_KEY, sort=False):
+            assert trip["prev_lateness_1"].iloc[1:].tolist() == trip["lateness_seconds"].iloc[:-1].tolist()
+            assert np.isnan(trip["prev_lateness_1"].iloc[0])
 
     def test_ablation_order_is_cumulative(self):
         from mbta_ds.model_delay import ABLATION_ORDER

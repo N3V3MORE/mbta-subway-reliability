@@ -75,36 +75,22 @@ class TestReduceDimensions:
 
 
 class TestClusterNaming:
-    def test_reliability_names_are_ordered_by_mean_delay(self):
-        """The label assigned to a cluster must be monotone in its mean delay.
-
-        The label list is sampled evenly across however many clusters were found,
-        so the contract is about ordering, not about specific strings.
-        """
-        profile = pd.DataFrame(
-            {"mean_delay": [10.0, 500.0, 200.0]},
-            index=["A", "B", "C"],
-        )
-        cluster_of = np.array([0, 1, 2])  # A -> 0, B -> 1, C -> 2
-        names = cluster_stations.name_reliability_clusters(profile, cluster_of)
-
-        # Walk the stations from least to most delayed and read off the label of
-        # each one's cluster; those label positions must increase monotonically.
-        ranking = profile["mean_delay"].sort_values()
-        ordered = [cluster_of[profile.index.get_loc(station)] for station in ranking.index]
-        positions = [cluster_stations.RELIABILITY_LABELS.index(names[c]) for c in ordered]
-
-        assert positions == sorted(positions)
-        assert positions == [0, 2, 4]
-        assert names[0] == cluster_stations.RELIABILITY_LABELS[0]
-        assert names[1] == cluster_stations.RELIABILITY_LABELS[-1]
-
-    def test_clusters_ahead_of_the_timetable_are_not_called_reliable(self):
-        profile = pd.DataFrame({"mean_delay": [-60.0, -20.0, 150.0]}, index=["A", "B", "C"])
+    def test_reliability_names_are_ordered_by_mean_lateness(self):
+        profile = pd.DataFrame({"mean_lateness": [10.0, 500.0, 200.0]}, index=["A", "B", "C"])
         names = cluster_stations.name_reliability_clusters(profile, np.array([0, 1, 2]))
-        assert names[0] == "runs early"
-        assert names[1] == "runs early (1)"   # still unique
-        assert names[2] == cluster_stations.RELIABILITY_LABELS[-1]
+        assert names == {0: "most reliable", 2: "average", 1: "least reliable"}
+
+    def test_two_clusters_are_not_called_the_extremes_of_a_longer_scale(self):
+        # With k=2 the old five-step scale called most stations "most delay-prone".
+        profile = pd.DataFrame({"mean_lateness": [40.0, 90.0]}, index=["A", "B"])
+        names = cluster_stations.name_reliability_clusters(profile, np.array([0, 1]))
+        assert names == {0: "more reliable", 1: "less reliable"}
+
+    def test_names_stay_unique_beyond_the_named_scales(self):
+        profile = pd.DataFrame({"mean_lateness": np.arange(7.0)}, index=list("ABCDEFG"))
+        names = cluster_stations.name_reliability_clusters(profile, np.arange(7))
+        assert len(set(names.values())) == 7
+        assert names[0] == "reliability tier 1"
 
     def test_demand_names_reflect_the_peak_period(self):
         columns = [f"p{i:02d}" for i in range(48)]
@@ -185,7 +171,7 @@ class TestReliabilityMatrix:
         frame = pd.DataFrame({
             "station_name": ["A", "A", "B"],
             "scheduled_hour": [8, 9, 8],
-            "delay_seconds": [100.0, 300.0, -50.0],
+            "lateness_seconds": [100.0, 300.0, -50.0],
             "late": [False, True, False],
         })
         matrix = cluster_stations.reliability_matrix(frame)
@@ -193,7 +179,7 @@ class TestReliabilityMatrix:
         assert "h09" in matrix.columns
         assert matrix.loc["A", "h08"] == pytest.approx(100.0)
         # Station B has no hour-9 service, so it inherits the network value for
-        # that hour rather than being filled with a fake zero delay.
+        # that hour rather than being filled with a fake zero lateness.
         assert matrix.loc["B", "h09"] == pytest.approx(300.0)
         assert matrix.loc["B", "h08"] == pytest.approx(-50.0)
 
@@ -203,7 +189,7 @@ class TestReliabilityMatrix:
         frame = pd.DataFrame({
             "station_name": ["A", "B"],
             "scheduled_hour": [8, 8],
-            "delay_seconds": [100.0, -50.0],
+            "lateness_seconds": [100.0, -50.0],
             "late": [False, False],
         })
         matrix = cluster_stations.reliability_matrix(frame)
@@ -214,13 +200,13 @@ class TestReliabilityMatrix:
         frame = pd.DataFrame({
             "station_name": ["A"] * 4,
             "scheduled_hour": [8, 8, 9, 9],
-            "delay_seconds": [0.0, 0.0, 600.0, 600.0],
+            "lateness_seconds": [0.0, 0.0, 600.0, 600.0],
             "late": [False, False, True, True],
         })
         matrix = cluster_stations.reliability_matrix(frame)
         assert matrix.loc["A", "on_time_rate"] == pytest.approx(0.5)
         assert matrix.loc["A", "n_observations"] == 4
-        assert matrix.loc["A", "mean_delay"] == pytest.approx(300.0)
+        assert matrix.loc["A", "mean_lateness"] == pytest.approx(300.0)
 
 
 class TestDemandCoverageFilter:
@@ -297,18 +283,18 @@ class TestCrossTrackTest:
         joined = pd.DataFrame({
             "reliability_cluster": ["late"] * 10 + ["on time"] * 10,
             "demand_cluster": ["busy"] * 10 + ["quiet"] * 10,
-            "mean_delay": [500.0] * 10 + [10.0] * 10,
+            "mean_lateness": [500.0] * 10 + [10.0] * 10,
         })
         result = cluster_stations.cross_track_test(joined)
         assert result["chi2_p_value"] < 0.01
         assert result["anova_p_value"] < 0.01
-        assert set(result["mean_delay_by_demand_cluster"]) == {"busy", "quiet"}
+        assert set(result["mean_lateness_by_demand_cluster"]) == {"busy", "quiet"}
 
     def test_handles_a_single_cluster_without_crashing(self):
         joined = pd.DataFrame({
             "reliability_cluster": ["only"] * 6,
             "demand_cluster": ["only"] * 6,
-            "mean_delay": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            "mean_lateness": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
         })
         result = cluster_stations.cross_track_test(joined)
         assert result["chi2_p_value"] is None

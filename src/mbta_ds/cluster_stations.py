@@ -2,7 +2,8 @@
 
 Two unsupervised analyses over the same station universe:
 
-1. **Reliability clusters** -- a station x hour-of-day matrix of median delay,
+1. **Reliability clusters** -- a station x hour-of-day matrix of median rider
+   lateness (``clean.lateness``: how much longer than planned riders waited),
    plus summary reliability statistics. Answers "which stations are chronically
    late, and is lateness a peak-only phenomenon or an all-day one?"
 2. **Demand clusters** -- a station x 48-half-hour *shape* profile from gated
@@ -77,11 +78,12 @@ class ClusterSolution:
 # Matrix construction
 # ---------------------------------------------------------------------------
 def reliability_matrix(frame: pd.DataFrame | None = None) -> pd.DataFrame:
-    """Build the station x hour matrix of median delay plus reliability stats.
+    """Build the station x hour matrix of median lateness plus reliability stats.
 
-    Median (not mean) delay per cell, because the delay distribution has a long
-    right tail and a mean would let a handful of meltdowns dominate a station's
-    profile.
+    Lateness, not delay versus the timetable, which drifts on frequent lines
+    (``clean.lateness``). Median (not mean) per cell, because the distribution has
+    a long right tail and a mean would let a handful of meltdowns dominate a
+    station's profile.
     """
     frame = clean.load() if frame is None else frame
 
@@ -89,7 +91,7 @@ def reliability_matrix(frame: pd.DataFrame | None = None) -> pd.DataFrame:
         frame.pivot_table(
             index="station_name",
             columns="scheduled_hour",
-            values="delay_seconds",
+            values="lateness_seconds",
             aggfunc="median",
         )
         .reindex(columns=range(24))
@@ -102,11 +104,11 @@ def reliability_matrix(frame: pd.DataFrame | None = None) -> pd.DataFrame:
     pivoted = pivoted.fillna(pivoted.median(axis=0))
 
     stats_frame = frame.groupby("station_name").agg(
-        mean_delay=("delay_seconds", "mean"),
-        median_delay=("delay_seconds", "median"),
-        p90_delay=("delay_seconds", lambda s: s.quantile(0.90)),
+        mean_lateness=("lateness_seconds", "mean"),
+        median_lateness=("lateness_seconds", "median"),
+        p90_lateness=("lateness_seconds", lambda s: s.quantile(0.90)),
         on_time_rate=("late", lambda s: 1.0 - float(s.mean())),
-        n_observations=("delay_seconds", "size"),
+        n_observations=("lateness_seconds", "size"),
     )
     matrix = pivoted.join(stats_frame)
     matrix.columns = [f"h{int(c):02d}" if isinstance(c, (int, np.integer)) else c
@@ -285,9 +287,15 @@ def compare_algorithms(matrix: np.ndarray, reference: ClusterSolution) -> dict:
 # ---------------------------------------------------------------------------
 # Cluster naming
 # ---------------------------------------------------------------------------
-RELIABILITY_LABELS = (
-    "most reliable", "reliable", "moderately delayed", "delay-prone", "most delay-prone",
-)
+#: Names by how many clusters there are, most reliable first. With two clusters
+#: the extremes of a five-step scale would call most of the network "most
+#: delay-prone"; each count gets a scale of its own length instead.
+RELIABILITY_LABELS = {
+    2: ("more reliable", "less reliable"),
+    3: ("most reliable", "average", "least reliable"),
+    4: ("most reliable", "reliable", "delay-prone", "most delay-prone"),
+    5: ("most reliable", "reliable", "moderately delayed", "delay-prone", "most delay-prone"),
+}
 
 #: Share of a station's daily entries falling in each time band, used to name
 #: demand clusters. Boundaries are in the 48 half-hour period indices.
@@ -375,21 +383,15 @@ def name_demand_clusters(profile: pd.DataFrame, labels: np.ndarray) -> dict[int,
 
 
 def name_reliability_clusters(profile: pd.DataFrame, labels: np.ndarray) -> dict[int, str]:
-    """Rank clusters by mean delay and give them ordered descriptive names.
+    """Rank clusters by mean lateness and name them on a scale of matching length.
 
-    A cluster whose trains arrive *before* the timetable on average is named
-    "runs early" rather than "reliable": for a rider an early train is a missed
-    one. (Green-E to Heath Street, the Green Line Extension and the Mattapan line
-    form such a cluster.) Names stay unique because they are used as group keys.
+    Names are unique because they are used as group keys; beyond five clusters
+    they are numbered tiers.
     """
-    ranking = profile.assign(cluster=labels).groupby("cluster")["mean_delay"].mean().sort_values()
-    names: dict[int, str] = {}
-    for position, (cluster, delay) in enumerate(ranking.items()):
-        # Spread the label list across however many clusters were found.
-        index = round(position * (len(RELIABILITY_LABELS) - 1) / max(len(ranking) - 1, 1))
-        name = "runs early" if delay < 0 else RELIABILITY_LABELS[index]
-        names[int(cluster)] = f"{name} ({cluster})" if name in names.values() else name
-    return names
+    ranking = profile.assign(cluster=labels).groupby("cluster")["mean_lateness"].mean().sort_values()
+    scale = RELIABILITY_LABELS.get(len(ranking))
+    return {int(cluster): scale[position] if scale else f"reliability tier {position + 1}"
+            for position, cluster in enumerate(ranking.index)}
 
 
 # ---------------------------------------------------------------------------
@@ -400,7 +402,7 @@ def cross_track_test(joined: pd.DataFrame) -> dict:
 
     A chi-square test on the contingency table answers "are the two typologies
     independent?", and a one-way ANOVA answers the more practically interesting
-    "does mean delay differ across demand clusters?".
+    "does mean lateness differ across demand clusters?".
     """
     contingency = pd.crosstab(joined["reliability_cluster"], joined["demand_cluster"])
     out: dict = {"contingency_shape": list(contingency.shape)}
@@ -417,7 +419,7 @@ def cross_track_test(joined: pd.DataFrame) -> dict:
         out["chi2_p_value"] = None
 
     groups = [
-        group["mean_delay"].to_numpy()
+        group["mean_lateness"].to_numpy()
         for _, group in joined.groupby("demand_cluster")
         if len(group) > 1
     ]
@@ -428,8 +430,8 @@ def cross_track_test(joined: pd.DataFrame) -> dict:
     else:
         out["anova_p_value"] = None
 
-    out["mean_delay_by_demand_cluster"] = (
-        joined.groupby("demand_cluster")["mean_delay"].mean().round(1).to_dict()
+    out["mean_lateness_by_demand_cluster"] = (
+        joined.groupby("demand_cluster")["mean_lateness"].mean().round(1).to_dict()
     )
     return out
 
@@ -459,7 +461,7 @@ def run() -> dict:
     del clean_frame
     if len(rel_matrix) < MIN_STATIONS:
         raise ValueError(f"only {len(rel_matrix)} stations; need {MIN_STATIONS}")
-    rel_stats = rel_matrix[["mean_delay", "median_delay", "p90_delay",
+    rel_stats = rel_matrix[["mean_lateness", "median_lateness", "p90_lateness",
                             "on_time_rate", "n_observations"]]
     rel_features = rel_matrix.drop(columns=rel_stats.columns)
     rel_reduced, rel_pca = reduce_dimensions(rel_features.to_numpy(), name="reliability")
@@ -484,7 +486,7 @@ def run() -> dict:
     }
     profiles.append(
         rel_out.groupby("reliability_cluster")[
-            ["mean_delay", "p90_delay", "on_time_rate"]
+            ["mean_lateness", "p90_lateness", "on_time_rate"]
         ].mean().round(2).add_prefix("reliability_").reset_index()
     )
 

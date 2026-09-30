@@ -29,8 +29,10 @@ def _toy_frame(dates=range(8), rows_per_date=40, seed=0) -> pd.DataFrame:
                     "scheduled_hour": 7 + (stop % 12),
                     "stop_sequence": stop,
                     "delay_seconds": delay,
+                    "lateness_seconds": delay,
                     "late": delay > 300,
                     "prev_delay_1": previous,
+                    "prev_lateness_1": previous,
                     "prev_delay_2": np.nan,
                     "prev_dwell_seconds": 30.0,
                     "prev_travel_time_seconds": 90.0,
@@ -152,16 +154,26 @@ class TestBaselines:
         frame = _toy_frame()
         assert (model_delay.ZeroRegressor().predict(frame) == 0).all()
 
-    def test_persistence_classifier_thresholds_the_previous_delay(self):
+    def test_persistence_classifier_thresholds_the_previous_lateness(self):
         frame = _toy_frame()
         previous = np.full(len(frame), 100.0)
         previous[:4] = [100.0, 400.0, np.nan, 301.0]
-        frame["prev_delay_1"] = previous
+        frame["prev_lateness_1"] = previous
 
         model = model_delay.PersistenceClassifier()
         labels = model.predict(frame.iloc[:4])
         # NaN (unknown) is treated as "not late" rather than crashing.
         assert list(labels) == [0, 1, 0, 1]
+
+
+class TestFeatureColumns:
+    def test_regression_leaves_out_rider_lateness(self):
+        numeric, _ = model_delay._columns(_toy_frame())
+        assert "prev_lateness_1" not in numeric
+
+    def test_lateness_models_use_it(self):
+        numeric, _ = model_delay._columns(_toy_frame(), lateness=True)
+        assert "prev_lateness_1" in numeric
 
 
 class TestChangeRegressor:
@@ -319,3 +331,46 @@ def test_run_start_comparison_splits_the_first_predictable_stop_from_the_rest():
     rows = model_delay.run_start_comparison(test, {"zero": np.zeros(4)})
     assert rows == [{"model": "zero", "run_start_mae": 100.0, "later_stops_mae": 0.0,
                      "run_start_share": 0.5}]
+
+
+class TestRunTimeChangeRegressor:
+    """The run-time lookup plus a learned correction."""
+
+    @staticmethod
+    def _frame(n_days: int = 6, per_day: int = 40) -> pd.DataFrame:
+        rng = np.random.default_rng(0)
+        rows = []
+        for d in range(n_days):
+            for i in range(per_day):
+                known = 1_000.0 * i
+                run = 80.0 + (30.0 if i % 2 else 0.0)   # odd rows run slower: learnable
+                rows.append({"service_date": f"2026-06-{d + 1:02d}", "route_id": "Red",
+                             "direction_id": 0, "stop_id": "s1", "known_at": known,
+                             "scheduled_epoch": known + 90.0, "odd": float(i % 2),
+                             "prev_delay_1": rng.normal(0, 60),
+                             "delay_seconds": run - 90.0})
+        return pd.DataFrame(rows)
+
+    def test_learns_what_the_lookup_misses(self):
+        frame = self._frame()
+        y = frame["delay_seconds"].to_numpy()
+        lookup = model_delay.RunTimeRegressor().fit(frame, y).predict(frame)
+        model = model_delay._fit(
+            model_delay.RunTimeChangeRegressor(model_delay._boost(True, loss="absolute_error",
+                                                                  early_stopping=False)),
+            frame, ["odd"], [], "delay_seconds")
+        predicted = model.predict(model_delay._inputs(model, frame, ["odd"]))
+        assert np.mean(np.abs(predicted - y)) < 0.5 * np.mean(np.abs(lookup - y))
+
+    def test_training_lookup_is_cross_fitted_by_date(self):
+        frame = self._frame(n_days=2, per_day=2)
+        y = frame["delay_seconds"].to_numpy().copy()
+        y[frame["service_date"] == "2026-06-01"] += 1_000.0
+        model = model_delay.RunTimeChangeRegressor(None, columns=[], folds=2)
+        oof = model._out_of_fold(frame, y)
+        # Each day's lookup comes from the other day only, never its own answers.
+        day1 = (frame["service_date"] == "2026-06-01").to_numpy()
+        assert np.all(np.abs(oof[day1] - y[day1]) >= 1_000.0 - 30.0)
+
+    def test_is_a_regression_candidate(self):
+        assert "hist_gradient_boosting_run_time" in model_delay.regression_models(quick=True)

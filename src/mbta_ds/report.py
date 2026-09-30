@@ -137,11 +137,11 @@ def tables() -> dict[str, pd.DataFrame]:
         "error_by_day_type": pd.DataFrame(metrics["error_analysis"]["by_day_type"]).rename(columns={
             "day_type": "Route-day", "mae": "MAE (s)", "median_abs_error": "Median error (s)",
             "n": "Arrivals"}),
-        "stations": clusters[[c for c in ("station_name", "reliability_cluster", "mean_delay",
-                                          "median_delay", "on_time_rate", "demand_cluster",
+        "stations": clusters[[c for c in ("station_name", "reliability_cluster", "mean_lateness",
+                                          "median_lateness", "on_time_rate", "demand_cluster",
                                           "total_entries") if c in clusters]].rename(columns={
             "station_name": "Station", "reliability_cluster": "Reliability cluster",
-            "mean_delay": "Mean delay (s)", "median_delay": "Median delay (s)",
+            "mean_lateness": "Mean lateness (s)", "median_lateness": "Median lateness (s)",
             "on_time_rate": "Share not >5 min late", "demand_cluster": "Demand cluster",
             "total_entries": "Mean daily entries"}),
         "cleaning": pd.read_csv(config.PROCESSED_DIR / "clean_ledger.csv").rename(
@@ -164,6 +164,14 @@ def tables() -> dict[str, pd.DataFrame]:
         "median_abs_error_seconds": "Median error (s)", "pinball_q90": "Pinball loss, 90th pct"})
     return out
 
+
+#: What "late" means everywhere in the report (see ``clean.lateness``).
+LATE_DEFINITION = (
+    "<p>\"Late\" is judged the way riders feel it: how much longer than planned they "
+    "waited for the train, i.e. the gap behind the train in front minus the scheduled gap "
+    "(the timetable where no gap is recorded). Delay against the timetable drifts on "
+    "frequent lines, where trains are paired with timetable slots in order.</p>"
+)
 
 def build() -> dict:
     """Write ``reports/report.html`` and ``reports/tables/*.csv``."""
@@ -211,6 +219,7 @@ def build() -> dict:
     if "early_warning" in t:
         sections += [
             ("Will it be 10+ minutes late?",
+             LATE_DEFINITION +
              "<p>PR-AUC measures how well each method ranks the trains that will be 10+ minutes "
              "late above the rest (1 = perfect; a random guess scores the share that are late). "
              "\"Recall\" is the share of those trains caught while keeping at least half of the "
@@ -233,10 +242,11 @@ def build() -> dict:
         ("Where the errors are",
          _table(t["error_by_route"]) + _table(t["error_by_day_type"])
          + f"<p class='note'>A route-day is \"disrupted\" when at least "
-         f"{model_delay.DISRUPTED_SHARE:.0%} of its arrivals were more than 10 minutes late: "
-         "roughly the worst eighth of route-days. Those few days carry a large share of the "
-         "error.</p>" + _image("predicted_vs_actual")),
-        ("Will the train be more than 5 minutes late?", _table(t["classification"], 3)),
+         f"{model_delay.DISRUPTED_SHARE:.0%} of its arrivals kept riders waiting 10+ minutes "
+         "longer than planned (a typical route-day has under 3%). Those few days carry a large "
+         "share of the error.</p>" + _image("predicted_vs_actual")),
+        ("Will the train be more than 5 minutes late?",
+         LATE_DEFINITION + _table(t["classification"], 3)),
         ("Stations", _image("delay_heatmap") + _table(t["stations"])),
         ("Data quality",
          "<p>How many rows each cleaning rule removed, and every automated check with its "

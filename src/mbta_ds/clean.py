@@ -34,6 +34,11 @@ Key findings that shape the cleaning
    platform and wait, a median 190 s before the scheduled departure. Those rows
    are kept as lag sources but excluded wherever delay is measured
    (:func:`is_arrival`); left in, they made terminals look punctual.
+7. "Delay versus the timetable" drifts on frequent lines. The source pairs the
+   n-th train of the day with the n-th timetable slot, so a line running slightly
+   sparser than planned falls further "behind" all day while riders see nearly
+   normal service. Whether a train was late for riders is therefore judged by the
+   gap behind the train in front (:func:`lateness`), not by the timetable.
 """
 
 from __future__ import annotations
@@ -72,7 +77,7 @@ MISMATCH_EARLY_SECONDS = 1800
 GLITCH_SECONDS = 1800
 GLITCH_AGREE_SECONDS = 600
 
-#: Default target threshold: "late" means more than 5 minutes behind schedule.
+#: "Late" means riders waited more than 5 minutes longer than planned (:func:`lateness`).
 LATE_THRESHOLD_SECONDS = config.LATE_THRESHOLD_SECONDS
 
 #: The true order of stops within a trip (see finding 5 above).
@@ -102,6 +107,47 @@ def isolated_glitches(frame: pd.DataFrame) -> pd.Series:
     first = prev.isna() & far(delay, nxt) & near(nxt, nxt2)
     last = nxt.isna() & far(delay, prev) & near(prev, prev2)
     return interior | first | last
+
+
+def lateness(frame: pd.DataFrame) -> pd.Series:
+    """How much later than planned a train came, as riders at the stop feel it.
+
+    The gap behind the previous train on the same branch minus the scheduled gap
+    (trunk values where a line has no branches, see :func:`extra_wait`); the
+    timetable delay only where no gap exists, each stop's first train of the day.
+    Unlike the timetable
+    delay it cannot drift: on the Blue Line on 30 June 2026 trains ran 330 s apart
+    against 300 s planned, and because the n-th train is paired with the n-th
+    timetable slot their "delay" climbed from +21 min at 10:00 to +95 min at 20:00.
+    Judged by the gap, 14% of that day's arrivals were late, not 70%.
+    """
+    return extra_wait(frame).fillna(frame["delay_seconds"])
+
+
+def extra_wait(frame: pd.DataFrame) -> pd.Series:
+    """Gap behind the train in front minus the planned gap; NaN where either is unknown.
+
+    The source measures gaps between departures, so a trip's last stop, where the
+    train does not depart, has none: 6.5% of arrivals, nearly all at terminals.
+    There the gap is taken between arrivals instead. Left to the timetable, the
+    terminals kept its drift, and Alewife, Braintree and Wonderland came out as a
+    reliability cluster of their own.
+    """
+    gap = frame["headway_branch_seconds"].fillna(frame["headway_trunk_seconds"])
+    planned = frame["scheduled_headway_branch"].fillna(frame["scheduled_headway_trunk"])
+    if gap.isna().any():
+        gap = gap.fillna(_arrival_gap(frame))
+    return gap - planned
+
+
+def _arrival_gap(frame: pd.DataFrame) -> pd.Series:
+    """Seconds since the previous train on the same branch and direction reached the station."""
+    branch = frame["branch_route_id"].astype("object").fillna(frame["route_id"].astype("object"))
+    ordered = (frame[["service_date", "parent_station", "direction_id", "stop_timestamp"]]
+               .assign(branch=branch).sort_values("stop_timestamp", kind="stable"))
+    gap = ordered.groupby(["service_date", "parent_station", "direction_id", "branch"],
+                          sort=False)["stop_timestamp"].diff()
+    return gap.reindex(frame.index)
 
 
 def is_arrival(frame: pd.DataFrame) -> pd.Series:
@@ -327,7 +373,9 @@ def build(
     frame["service_date_parsed"] = dates["date"].to_numpy()[date_codes]
 
     frame["direction_id"] = frame["direction_id"].astype("int8")
-    frame["late"] = frame["delay_seconds"] > LATE_THRESHOLD_SECONDS
+    frame["extra_wait_seconds"] = extra_wait(frame)
+    frame["lateness_seconds"] = frame["extra_wait_seconds"].fillna(frame["delay_seconds"])
+    frame["late"] = frame["lateness_seconds"] > LATE_THRESHOLD_SECONDS
 
     # --- rule 4: flag, do not silently delete, implausible values --------
     frame["delay_outlier"] = frame["delay_seconds"].abs() > DELAY_OUTLIER_SECONDS
@@ -402,6 +450,8 @@ def summary(frame: pd.DataFrame | None = None) -> dict:
         "p05_delay_seconds": float(delay.quantile(0.05)),
         "p95_delay_seconds": float(delay.quantile(0.95)),
         "late_pct": float(arrivals["late"].mean() * 100),
+        "late_behind_timetable_pct": float((delay > LATE_THRESHOLD_SECONDS).mean() * 100),
+        "judged_by_timetable_pct": float(arrivals["extra_wait_seconds"].isna().mean() * 100),
         "delay_outlier_pct": float(arrivals["delay_outlier"].mean() * 100),
     }
 

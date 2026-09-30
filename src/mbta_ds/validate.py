@@ -14,7 +14,7 @@ import operator
 import pandas as pd
 import pyarrow.parquet as pq
 
-from . import clean, collect_ridership, collect_weather, config, features
+from . import clean, collect_lamp, collect_ridership, collect_weather, config, features
 
 log = logging.getLogger(__name__)
 
@@ -58,6 +58,8 @@ def check_clean(frame: pd.DataFrame, empty_at_source: frozenset = frozenset(),
     weekday = pd.to_datetime(pd.Series(per_day.index)).dt.dayofweek.to_numpy()
     reduced = (per_day / per_day.groupby(weekday).transform("median")) < DIVERSION_SHARE
 
+    behind_timetable = arrivals["delay_seconds"] > clean.LATE_THRESHOLD_SECONDS
+
     both = frame["move_timestamp"].notna() & frame["travel_time_seconds"].notna()
     travel_matches = (frame["stop_timestamp"] - frame["move_timestamp"])[both] == \
         frame.loc[both, "travel_time_seconds"]
@@ -95,6 +97,12 @@ def check_clean(frame: pd.DataFrame, empty_at_source: frozenset = frozenset(),
                frame["station_name"].str.startswith("place-").sum(), "==", 0),
         _check(c, "route-days below 60% of usual volume (shutdowns)",
                reduced.to_numpy().sum(), ">=", 0, hard=False),
+        # Lateness (`clean.lateness`) falls back to the timetable without a gap.
+        _check(c, "share of arrivals judged by the timetable (no gap recorded)",
+               arrivals["extra_wait_seconds"].isna().mean(), ">=", 0, hard=False),
+        _check(c, "share of arrivals behind the timetable that riders saw on time (drift)",
+               (behind_timetable & ~arrivals["late"]).sum() / max(behind_timetable.sum(), 1),
+               ">=", 0, hard=False),
     ]
 
 
@@ -160,6 +168,14 @@ def check_features(frame: pd.DataFrame, window: tuple | None = None) -> list[dic
     ]
 
 
+def check_alerts(alerts: pd.DataFrame, window: tuple) -> list[dict]:
+    """The alerts archive is a snapshot; one taken before the window ended would
+    leave its last days with zero alerts, which the features read as "none"."""
+    latest = pd.to_datetime(alerts["last_modified_datetime"]).max().date()
+    return [_check("alerts", "window days after the alerts archive ends",
+                   max(0, (window[1] - latest).days), "==", 0)]
+
+
 def empty_source_dates(days) -> frozenset:
     """Service dates whose archive file was downloaded and has no rows.
 
@@ -181,7 +197,9 @@ def run() -> dict:
     results = (check_clean(clean_frame, empty_source_dates(pd.date_range(*window).date), window)
                + check_features(features.load(), window))
     for loader, checker in ((collect_ridership.load_raw, lambda d: check_ridership(d, window=window)),
-                            (collect_weather.load_weather, lambda d: check_weather(d, window))):
+                            (collect_weather.load_weather, lambda d: check_weather(d, window)),
+                            (lambda: collect_lamp.load_alerts(columns=["last_modified_datetime"]),
+                             lambda d: check_alerts(d, window))):
         try:
             results += checker(loader())
         except FileNotFoundError as exc:

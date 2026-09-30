@@ -73,11 +73,11 @@ def _clean_table() -> pd.DataFrame:
 
 
 @functools.lru_cache(maxsize=1)
-def _station_hour_median_delay() -> pd.DataFrame:
-    """Station x hour median delay, rows ordered from most to least late."""
+def _station_hour_median_lateness() -> pd.DataFrame:
+    """Station x hour median lateness (``clean.lateness``), most late rows first."""
     pivot = _clean_table().pivot_table(
         index="station_name", columns="scheduled_hour",
-        values="delay_seconds", aggfunc="median",
+        values="lateness_seconds", aggfunc="median",
     ).reindex(columns=range(24))
     return pivot.loc[pivot.mean(axis=1).sort_values(ascending=False).index]
 
@@ -173,7 +173,7 @@ def figure_station_map() -> tuple[go.Figure, str]:
         size="_size",
         hover_name="station_name",
         hover_data={
-            "mean_delay": ":.0f",
+            "mean_lateness": ":.0f",
             "on_time_rate": ":.2f",
             "total_entries": ":,.0f",
             "latitude": False,
@@ -185,7 +185,7 @@ def figure_station_map() -> tuple[go.Figure, str]:
         height=720,
         title="MBTA subway stations by reliability cluster "
               "(marker size = mean daily gated entries)",
-        labels={"reliability_cluster": "Reliability", "mean_delay": "Mean delay (s)",
+        labels={"reliability_cluster": "Reliability", "mean_lateness": "Mean lateness (s)",
                 "on_time_rate": "On-time rate", "total_entries": "Daily entries"},
         map_style="carto-positron",
     )
@@ -194,8 +194,8 @@ def figure_station_map() -> tuple[go.Figure, str]:
 
 
 def figure_delay_heatmap() -> tuple[go.Figure, str]:
-    """Station x hour heatmap of median delay, ordered by overall lateness."""
-    pivot = _station_hour_median_delay()
+    """Station x hour heatmap of median lateness, ordered by overall lateness."""
+    pivot = _station_hour_median_lateness()
 
     figure = go.Figure(go.Heatmap(
         z=pivot.to_numpy(),
@@ -203,13 +203,13 @@ def figure_delay_heatmap() -> tuple[go.Figure, str]:
         y=pivot.index,
         colorscale="RdBu_r",
         zmid=0,
-        colorbar=dict(title="Median<br>delay (s)"),
-        hovertemplate="%{y}<br>%{x}<br>median delay %{z:.0f}s<extra></extra>",
+        colorbar=dict(title="Median<br>lateness (s)"),
+        hovertemplate="%{y}<br>%{x}<br>median lateness %{z:.0f}s<extra></extra>",
     ))
     figure.update_layout(
         template=PLOTLY_TEMPLATE,
-        title="Median arrival delay by station and scheduled hour "
-              "(red = late, blue = early)",
+        title="Median lateness by station and scheduled hour: extra wait behind the "
+              "train in front (red = longer than planned, blue = shorter)",
         xaxis_title="Scheduled hour of day",
         yaxis_title="",
         height=max(600, 16 * len(pivot)),
@@ -219,21 +219,22 @@ def figure_delay_heatmap() -> tuple[go.Figure, str]:
 
 
 def figure_delay_by_route() -> tuple[go.Figure, str]:
-    """Delay distribution by route, clipped to a readable window."""
+    """Lateness distribution by route, clipped to a readable window."""
     frame = _clean_table()
-    subset = frame[frame["delay_seconds"].between(-600, 1800)]
+    subset = frame[frame["lateness_seconds"].between(-600, 1800)]
     subset = _sample(subset, 30_000)
     figure = px.violin(
         subset,
         x="route_id",
-        y="delay_seconds",
+        y="lateness_seconds",
         color="route_id",
         box=True,
         points=False,
         color_discrete_sequence=CLUSTER_PALETTE,
         height=560,
-        title="Arrival delay distribution by route (clipped to -10 to +30 minutes)",
-        labels={"route_id": "Route", "delay_seconds": "Delay (seconds)"},
+        title="Lateness by route: extra wait behind the train in front "
+              "(clipped to -10 to +30 minutes)",
+        labels={"route_id": "Route", "lateness_seconds": "Lateness (seconds)"},
     )
     figure.add_hline(y=300, line_dash="dash", line_color="firebrick",
                      annotation_text="5-minute lateness threshold")
@@ -430,7 +431,7 @@ def figure_demand_profiles() -> tuple[go.Figure, str]:
 
 
 def figure_cluster_scatter() -> tuple[go.Figure, str]:
-    """Mean delay versus daily entries, coloured by demand cluster."""
+    """Mean lateness versus daily entries, coloured by demand cluster."""
     clusters = cluster_stations.load_clusters()
     if "demand_cluster" not in clusters.columns:
         raise ValueError("demand clustering not available")
@@ -438,15 +439,15 @@ def figure_cluster_scatter() -> tuple[go.Figure, str]:
     subset = clusters.dropna(subset=["demand_cluster", "total_entries"])
     figure = px.scatter(
         subset,
-        x="total_entries", y="mean_delay",
+        x="total_entries", y="mean_lateness",
         color="demand_cluster", symbol="reliability_cluster",
         hover_name="station_name",
         color_discrete_sequence=CLUSTER_PALETTE,
         height=620,
-        title="Station demand versus mean delay, coloured by demand cluster "
+        title="Station demand versus mean lateness, coloured by demand cluster "
               "and shaped by reliability cluster",
         labels={"total_entries": "Mean daily gated entries",
-                "mean_delay": "Mean delay (seconds)",
+                "mean_lateness": "Mean lateness (seconds)",
                 "demand_cluster": "Demand cluster",
                 "reliability_cluster": "Reliability cluster"},
     )
@@ -574,7 +575,7 @@ def png_demand_profiles() -> str:
 
 
 def png_delay_heatmap() -> str:
-    pivot = _station_hour_median_delay()
+    pivot = _station_hour_median_lateness()
 
     fig, ax = plt.subplots(figsize=(11, 12))
     limit = float(np.nanpercentile(np.abs(pivot.to_numpy()), 95)) or 300.0
@@ -585,8 +586,8 @@ def png_delay_heatmap() -> str:
     ax.set_yticks(range(len(pivot)))
     ax.set_yticklabels(pivot.index, fontsize=5)
     ax.set_xlabel("Scheduled hour of day")
-    ax.set_title("Median arrival delay by station and hour (seconds)")
-    fig.colorbar(mesh, ax=ax, label="Median delay (s)", shrink=0.6)
+    ax.set_title("Median lateness by station and hour (seconds of extra wait)")
+    fig.colorbar(mesh, ax=ax, label="Median lateness (s)", shrink=0.6)
     fig.tight_layout()
     return _write_png(fig, "delay_heatmap")
 

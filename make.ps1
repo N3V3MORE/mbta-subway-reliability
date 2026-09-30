@@ -16,7 +16,7 @@
 param(
     [Parameter(Position = 0)]
     [ValidateSet('help', 'all', 'setup', 'data', 'live', 'model', 'model-full',
-                 'cluster', 'figures', 'report', 'test', 'clean', 'distclean')]
+                 'cluster', 'figures', 'report', 'map', 'test', 'clean', 'distclean')]
     [string]$Target = 'help',
 
     [int]$Days = 90,
@@ -70,6 +70,7 @@ Targets:
   cluster      cluster stations by reliability and demand (Track B)
   figures      render interactive and static figures
   report       write reports/report.html, reports/story.html and reports/tables/*.csv
+  map          export map data and open the 3D map (needs Node.js)
   all          setup + data + model + cluster + figures + report
   test         run the test suite
   clean        remove generated data and figures
@@ -108,6 +109,13 @@ Targets:
         Invoke-Step 'supporting analyses' @('-m', 'mbta_ds.cli', 'extras')
         Invoke-Step 'writing the report' @('-m', 'mbta_ds.cli', 'report')
         Invoke-Step 'writing the plain-language story' @('-m', 'mbta_ds.cli', 'story')
+    }
+    'map' {
+        Invoke-Step 'exporting the network and replay days for the 3D map' @('-m', 'mbta_ds.cli', 'export-map')
+        Write-Host '==> starting the map at http://localhost:5173 (Ctrl-C to stop)' -ForegroundColor Cyan
+        npm --prefix map install --no-audit --no-fund
+        if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+        npm --prefix map run dev
     }
     'test' {
         Invoke-Step 'running tests' @('-m', 'pytest', '-q')

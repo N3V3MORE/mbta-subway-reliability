@@ -16,7 +16,8 @@
 param(
     [Parameter(Position = 0)]
     [ValidateSet('help', 'all', 'setup', 'data', 'live', 'model', 'model-full',
-                 'cluster', 'figures', 'report', 'map', 'test', 'clean', 'distclean')]
+                 'cluster', 'figures', 'report', 'map', 'test', 'clean', 'distclean',
+                 'live-day', 'schedule-live', 'unschedule-live')]
     [string]$Target = 'help',
 
     [int]$Days = 90,
@@ -37,6 +38,7 @@ Set-Location $repoRoot
 $env:PYTHONPATH = Join-Path $repoRoot 'src'
 if ($Run) { $env:MBTA_RUN = $Run }
 $python = 'python'
+$liveTask = 'MBTA live collector'
 
 function Invoke-Step {
     param([string]$Label, [string[]]$Arguments)
@@ -64,7 +66,10 @@ switch ($Target) {
 Targets:
   setup        install Python dependencies
   data         download, clean, build features, validate (Days=$Days)
-  live         poll the MBTA V3 API and record live snapshots
+  live         poll the MBTA V3 API and record live snapshots (10 minutes)
+  live-day     poll until 03:00, the end of the service day
+  schedule-live   run live-day every day at 05:00 (Windows Task Scheduler)
+  unschedule-live remove that scheduled task
   model        train and evaluate the delay and 10+ minute models (Track A)
   model-full   as 'model', plus random forest and KNN
   cluster      cluster stations by reliability and demand (Track B)
@@ -90,6 +95,28 @@ Targets:
     }
     'live' {
         Invoke-Step 'polling the V3 API' @('-m', 'mbta_ds.cli', 'live', '--minutes', '10', '--interval', '60')
+    }
+    'live-day' {
+        Invoke-Step 'polling the V3 API until 03:00' @('-m', 'mbta_ds.cli', 'live', '--until', '03:00', '--interval', '60')
+    }
+    'schedule-live' {
+        # Runs as the current user, only while logged on: no password is stored.
+        # A run missed while the computer was off or asleep starts when it wakes.
+        $log = Join-Path $repoRoot 'dataaw3\collector.log'
+        New-Item -ItemType Directory -Force (Split-Path $log) | Out-Null
+        $command = "& '$PSCommandPath' live-day *>> '$log'"
+        $action = New-ScheduledTaskAction -Execute 'powershell.exe' -WorkingDirectory $repoRoot `
+            -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command `"$command`""
+        $trigger = New-ScheduledTaskTrigger -Daily -At '05:00'
+        $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+            -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 23)
+        Register-ScheduledTask -TaskName $liveTask -Action $action -Trigger $trigger -Settings $settings `
+            -Description 'Records MBTA live predictions, vehicles and alerts (mbta_ds live-day).' -Force | Out-Null
+        Write-Host "Scheduled '$liveTask' daily at 05:00. Log: $log. Start it now with: Start-ScheduledTask -TaskName '$liveTask'" -ForegroundColor Green
+    }
+    'unschedule-live' {
+        Unregister-ScheduledTask -TaskName $liveTask -Confirm:$false
+        Write-Host "Removed '$liveTask'."
     }
     'model' {
         Invoke-Step 'training and evaluating delay models' @('-m', 'mbta_ds.cli', 'train')

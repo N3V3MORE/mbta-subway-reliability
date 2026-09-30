@@ -1,9 +1,12 @@
 """Live collector for the MBTA V3 API (the "we collected this ourselves" dataset).
 
 Polls ``/predictions``, ``/vehicles`` and ``/alerts`` for the subway routes and
-appends timestamped snapshots to JSONL. JSONL is used deliberately: it is
-line-appendable, crash-safe, and needs no schema negotiation, which matters for a
-process designed to run in the background for weeks.
+appends timestamped snapshots to JSONL, one gzip file per resource and local
+day (``data/raw/v3/<resource>/<date>.jsonl.gz``). JSONL is used deliberately: it
+is line-appendable, crash-safe, and needs no schema negotiation, which matters for
+a process designed to run in the background for weeks. Each append is its own
+gzip member, so a file cut short by a crash loses at most one poll, and the files
+are about a tenth of the plain-text size (~1 GB a day uncompressed).
 
 One poll issues three requests. At the default 60-second interval that is
 3 requests/minute -- comfortably inside the 20 request/minute anonymous limit,
@@ -12,6 +15,7 @@ so the collector works with or without an API key.
 
 from __future__ import annotations
 
+import gzip
 import json
 import logging
 import time
@@ -75,14 +79,20 @@ def flatten_records(payload: dict, resource: str, fetch_ts: float) -> list[dict]
     return rows
 
 
+def daily_path(resource: str, fetch_ts: float, root: Path | None = None) -> Path:
+    """Where a poll at ``fetch_ts`` is stored: one file per resource and local day."""
+    day = pd.Timestamp(fetch_ts, unit="s", tz="UTC").tz_convert(config.SERVICE_TZ).date()
+    return (root or config.V3_RAW_DIR) / resource / f"{day}.jsonl.gz"
+
+
 def _append_jsonl(path: Path, rows: list[dict]) -> None:
     if not rows:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
-        for row in rows:
-            handle.write(json.dumps(row, default=str))
-            handle.write("\n")
+    text = "".join(json.dumps(row, default=str) + "\n" for row in rows)
+    # Appending a new gzip member per poll keeps each write self-contained.
+    with gzip.open(path, "at", encoding="utf-8") as handle:
+        handle.write(text)
 
 
 def poll_once(
@@ -101,7 +111,7 @@ def poll_once(
             counts[resource] = 0
             continue
         rows = flatten_records(payload, resource, fetch_ts)
-        _append_jsonl(config.V3_RAW_DIR / f"{resource}.jsonl", rows)
+        _append_jsonl(daily_path(resource, fetch_ts), rows)
         counts[resource] = len(rows)
     return counts
 
@@ -157,6 +167,20 @@ def load_stations() -> pd.DataFrame:
     return pd.read_parquet(dest)
 
 
+def minutes_until(clock: str, now: pd.Timestamp | None = None) -> float:
+    """Minutes from ``now`` to the next ``HH:MM``, Boston time.
+
+    The daily scheduled run stops at the end of the service day (03:00), so it
+    never overlaps the next morning's run, whenever it was started.
+    """
+    now = now if now is not None else pd.Timestamp.now(tz=config.SERVICE_TZ)
+    hour, minute = (int(part) for part in clock.split(":"))
+    target = now.normalize() + pd.Timedelta(hours=hour, minutes=minute)
+    if target <= now:
+        target += pd.Timedelta(days=1)
+    return (target - now).total_seconds() / 60
+
+
 def collect(
     minutes: float = 10.0,
     *,
@@ -202,14 +226,24 @@ def collect(
 # ---------------------------------------------------------------------------
 # Reading back what the collector wrote
 # ---------------------------------------------------------------------------
-def load_live(resource: str) -> pd.DataFrame:
-    """Load a collected JSONL resource into a DataFrame, values as written."""
+def live_files(resource: str, root: Path | None = None) -> list[Path]:
+    """Every file holding ``resource``: the daily gzip files, and the single
+    plain JSONL file earlier versions of the collector wrote."""
+    root = root or config.V3_RAW_DIR
+    legacy = root / f"{resource}.jsonl"
+    return ([legacy] if legacy.exists() else []) + sorted((root / resource).glob("*.jsonl.gz"))
+
+
+def load_live(resource: str, root: Path | None = None) -> pd.DataFrame:
+    """Load every collected snapshot of a resource into a DataFrame, values as written."""
     if resource not in RESOURCES:
         raise ValueError(f"unknown resource {resource!r}; expected one of {RESOURCES}")
-    path = config.V3_RAW_DIR / f"{resource}.jsonl"
-    if not path.exists():
-        raise FileNotFoundError(f"{path} missing; run `python -m mbta_ds.cli live --minutes 5` first")
-    return pd.read_json(path, lines=True, dtype=False, convert_dates=False)
+    files = live_files(resource, root)
+    if not files:
+        raise FileNotFoundError(f"no {resource} snapshots; run `python -m mbta_ds.cli live --minutes 5` first")
+    return pd.concat([pd.read_json(path, lines=True, dtype=False, convert_dates=False,
+                                   compression="gzip" if path.suffix == ".gz" else None)
+                      for path in files], ignore_index=True)
 
 
 def live_prediction_delays() -> pd.DataFrame:

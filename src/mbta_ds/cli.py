@@ -137,7 +137,8 @@ def stage_collect(args: argparse.Namespace) -> dict:
 def stage_live(args: argparse.Namespace) -> dict:
     from . import collect_v3
 
-    return collect_v3.collect(minutes=args.minutes, interval=args.interval)
+    minutes = collect_v3.minutes_until(args.until) if args.until else args.minutes
+    return collect_v3.collect(minutes=minutes, interval=args.interval)
 
 
 def stage_clean(args: argparse.Namespace) -> dict:
@@ -197,6 +198,12 @@ def stage_crosscheck(args: argparse.Namespace) -> dict:
     return crosscheck.run()
 
 
+def stage_incidents(args: argparse.Namespace) -> dict:
+    from . import incidents
+
+    return incidents.run(quick=args.quick)
+
+
 def stage_compare_mbta(args: argparse.Namespace) -> dict:
     from . import compare_mbta
 
@@ -252,6 +259,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("live", help="poll the V3 API and record snapshots")
     p.add_argument("--minutes", type=float, default=10.0, help="how long to poll")
     p.add_argument("--interval", type=float, default=60.0, help="seconds between polls")
+    p.add_argument("--until", metavar="HH:MM", help="poll until this Boston time instead (e.g. 03:00)")
     p.set_defaults(func=stage_live)
 
     p = sub.add_parser("clean", help="build the tidy trip-stop table with delays")
@@ -287,6 +295,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("crosscheck", help="compare our timestamps with TransitMatters (network)")
     p.set_defaults(func=stage_crosscheck)
+
+    p = sub.add_parser("incidents", help="test minute-level alert features (cause, announced delay)")
+    p.add_argument("--quick", action="store_true", help="subsample for a fast run")
+    p.set_defaults(func=stage_incidents)
 
     p = sub.add_parser("compare-mbta",
                        help="score our predictions the way the MBTA scores its countdown clocks (network)")

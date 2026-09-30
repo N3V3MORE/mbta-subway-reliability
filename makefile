@@ -22,7 +22,7 @@ ifdef RUN
 export MBTA_RUN := $(RUN)
 endif
 
-.PHONY: help all setup data live model model-full cluster figures report map test clean distclean
+.PHONY: help all setup data live live-day model model-full cluster figures report map test clean distclean
 
 help:
 	@echo "Targets:"
@@ -63,6 +63,10 @@ data:
 live:
 	@echo "==> polling the V3 API (Ctrl-C to stop)"
 	$(PYTHON) -m mbta_ds.cli live --minutes 10 --interval 60
+
+live-day:
+	@echo "==> polling the V3 API until 03:00, the end of the service day"
+	$(PYTHON) -m mbta_ds.cli live --until 03:00 --interval 60
 
 model:
 	@echo "==> training and evaluating delay models"

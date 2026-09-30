@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { Pattern, Replay, Station } from '../types'
+import type { Incident, Pattern, Replay, Station } from '../types'
 import { columnRing, pointAt } from './geometry'
-import { bandOf, prepareReplay, stopAt, vehiclesAt } from './replay'
+import { activeIncidents, bandOf, incidentEnd, OPEN_INCIDENT_SECONDS, prepareReplay, stopAt, vehiclesAt } from './replay'
 import { searchStations } from './search'
 import { formatClock, formatDelay } from './format'
 
@@ -100,5 +100,29 @@ describe('searchStations', () => {
   it('ranks exact, then prefix, then other matches', () => {
     expect(searchStations(stations, 'park').map((s) => s.name)).toEqual(['Park Street', 'Parker', 'Street Park'])
     expect(searchStations(stations, '   ')).toEqual([])
+  })
+})
+
+describe('incidents', () => {
+  const incident = (id: string, start: number, end: number | null): Incident => ({
+    cause: null, effect: 'OTHER_EFFECT', end, id, lines: ['Red'], start, stations: [], text: id,
+  })
+
+  it('are in effect from when raised until closed, most recent first', () => {
+    const list = [incident('a', 100, 500), incident('b', 300, 400)]
+    expect(activeIncidents(list, 50)).toEqual([])
+    expect(activeIncidents(list, 350).map((i) => i.id)).toEqual(['b', 'a'])
+    expect(activeIncidents(list, 400).map((i) => i.id)).toEqual(['a'])
+    expect(activeIncidents(list, 500)).toEqual([])
+  })
+
+  it('last an hour when the archive never recorded a close', () => {
+    expect(incidentEnd(incident('open', 1_000, null))).toBe(1_000 + OPEN_INCIDENT_SECONDS)
+  })
+
+  it('are sorted by start, and default to none in older files', () => {
+    expect(prepareReplay(replay, network).incidents).toEqual([])
+    const withIncidents = prepareReplay({ ...replay, incidents: [incident('late', 900, null), incident('early', 100, 200)] }, network)
+    expect(withIncidents.incidents.map((i) => i.id)).toEqual(['early', 'late'])
   })
 })

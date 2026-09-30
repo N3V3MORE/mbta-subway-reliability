@@ -31,7 +31,7 @@ export type Station = {
   reliability: string | null
 }
 
-export type ReplaySummary = { late: number; maeModel: number; maePersistence: number; stops: number; trips: number }
+export type ReplaySummary = { incidents?: number; late: number; maeModel: number; maePersistence: number; stops: number; trips: number }
 
 export type ReplayDay = ReplaySummary & { date: string; file: string; label: string; note: string }
 
@@ -64,4 +64,20 @@ export type Trip = {
   w: number[]
 }
 
-export type Replay = { date: string; label: string; summary: ReplaySummary; trips: Trip[] }
+/** A service incident the MBTA reported that day (its alerts archive). */
+export type Incident = {
+  cause: string | null
+  /** MBTA effect code, such as DETOUR or REDUCED_SERVICE. */
+  effect: string
+  /** When the alert was closed, in seconds after the start of the service day; null if never recorded. */
+  end: number | null
+  id: string
+  lines: string[]
+  /** When the alert was raised, in seconds after the start of the service day. */
+  start: number
+  /** Station indices into `Network.stations` the alert names; often none. */
+  stations: number[]
+  text: string
+}
+
+export type Replay = { date: string; incidents?: Incident[]; label: string; summary: ReplaySummary; trips: Trip[] }

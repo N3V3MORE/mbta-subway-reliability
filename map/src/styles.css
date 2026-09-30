@@ -14,6 +14,7 @@
   --text: #f1e9dd;
   --muted: #aaa195;
   --accent: #e7b047;
+  --alert: #ff7a59;
 }
 
 * { box-sizing: border-box; }
@@ -84,6 +85,19 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .timeline-heading strong { color: var(--text); font-size: 17px; font-weight: 500; }
 .timeline input[type='range'] { accent-color: var(--accent); cursor: pointer; margin: 13px 0 4px; width: 100%; }
 .timeline-ticks { color: #8f877b; display: flex; font-family: 'DM Mono', monospace; font-size: 9px; justify-content: space-between; }
+.timeline-incidents { height: 10px; margin: 13px 0 -9px; position: relative; }
+.timeline-incidents button { background: var(--alert); border: 0; cursor: pointer; height: 10px; margin-left: -2px; padding: 0; position: absolute; top: 0; width: 4px; }
+.timeline-incidents button:hover, .timeline-incidents button:focus-visible { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--alert); }
+.timeline-incident { align-items: center; border-top: 1px solid var(--soft-border); color: var(--text); display: none; font-size: 10px; gap: 5px; line-height: 1.45; margin: 10px 0 0; padding-top: 9px; }
+.timeline-incident > svg { color: var(--alert); flex: 0 0 auto; }
+
+.incidents { border-top: 1px solid var(--soft-border); margin-top: 11px; padding-top: 10px; }
+.incidents .kicker { align-items: center; color: var(--alert); display: flex; gap: 5px; }
+.incidents ul { display: grid; gap: 7px; list-style: none; margin: 8px 0 0; max-height: 132px; overflow-y: auto; padding: 0; }
+.incidents li { color: var(--text); display: grid; font-size: 10px; gap: 8px; grid-template-columns: 34px 1fr; line-height: 1.45; }
+.incidents li .mono { color: var(--muted); }
+.incidents .swatch { margin-right: 4px; }
+
 .timeline-row { align-items: center; display: flex; gap: 9px; margin-top: 11px; }
 .timeline-row p { color: var(--muted); font-size: 10px; margin: 0; }
 
@@ -131,6 +145,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 @media (max-width: 1180px) {
   .timeline { left: 50%; max-width: calc(100vw - 56px); min-width: 0; }
   .note:has(+ .timeline) { display: none; }
+  .timeline-incident { display: flex; }
 }
 
 @media (max-width: 760px) {

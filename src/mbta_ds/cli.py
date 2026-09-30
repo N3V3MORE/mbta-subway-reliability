@@ -197,6 +197,12 @@ def stage_crosscheck(args: argparse.Namespace) -> dict:
     return crosscheck.run()
 
 
+def stage_compare_mbta(args: argparse.Namespace) -> dict:
+    from . import compare_mbta
+
+    return compare_mbta.run(quick=args.quick)
+
+
 def stage_story(args: argparse.Namespace) -> dict:
     from . import story
 
@@ -281,6 +287,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("crosscheck", help="compare our timestamps with TransitMatters (network)")
     p.set_defaults(func=stage_crosscheck)
+
+    p = sub.add_parser("compare-mbta",
+                       help="score our predictions the way the MBTA scores its countdown clocks (network)")
+    p.add_argument("--quick", action="store_true", help="three horizons, subsampled")
+    p.set_defaults(func=stage_compare_mbta)
 
     p = sub.add_parser("report", help="write reports/report.html and reports/tables/*.csv")
     p.set_defaults(func=stage_report)

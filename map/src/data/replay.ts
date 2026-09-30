@@ -1,10 +1,12 @@
-import type { LonLat, Network, Pattern, Replay, Trip } from '../types'
+import type { Incident, LonLat, Network, Pattern, Replay, Trip } from '../types'
 import { pointAt } from './geometry'
 
 export type PreparedTrip = Trip & { end: number; leave: number[]; metres: number[]; start: number }
 
-export type PreparedReplay = Omit<Replay, 'trips'> & {
+export type PreparedReplay = Omit<Replay, 'incidents' | 'trips'> & {
   end: number
+  /** Sorted by start. Files exported before incidents existed have none. */
+  incidents: Incident[]
   start: number
   /** Trips sorted by first arrival, so a scan can stop at the first future trip. */
   trips: PreparedTrip[]
@@ -44,6 +46,7 @@ export function prepareReplay(replay: Replay, network: Pick<Network, 'patterns' 
   trips.sort((left, right) => left.start - right.start)
   return {
     ...replay,
+    incidents: [...(replay.incidents ?? [])].sort((left, right) => left.start - right.start),
     end: Math.max(...trips.map((trip) => trip.end)),
     start: trips[0]?.start ?? 0,
     tripById: new Map(trips.map((trip) => [trip.id, trip])),
@@ -82,4 +85,15 @@ export function vehiclesAt(replay: PreparedReplay, patterns: Pattern[], t: numbe
     vehicles.push({ coords: pointAt(patterns[trip.pattern], metres), lateness: trip.l[stop], stop, trip })
   }
   return vehicles
+}
+
+/** How long an alert that was never closed is shown for, in seconds. */
+export const OPEN_INCIDENT_SECONDS = 3_600
+
+/** The incident's end, or an hour after it began when the archive has none. */
+export const incidentEnd = (incident: Incident) => incident.end ?? incident.start + OPEN_INCIDENT_SECONDS
+
+/** Incidents in effect at time `t`, most recent first. */
+export function activeIncidents(incidents: Incident[], t: number): Incident[] {
+  return incidents.filter((incident) => incident.start <= t && t < incidentEnd(incident)).reverse()
 }

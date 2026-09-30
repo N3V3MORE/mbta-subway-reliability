@@ -85,3 +85,48 @@ def test_replay_keeps_observed_order_and_joins_predictions():
     assert replay["summary"]["late"] == 0.5
     assert trip["p"] == [None, 36, None]
     assert replay["summary"]["maeModel"] == pytest.approx(4.8)
+
+
+def test_incidents_are_the_days_service_alerts_with_start_end_and_stations():
+    rows = [
+        # Raised 07:10, updated, then closed 07:34: one incident.
+        {"id": 1, "cause": "TECHNICAL_PROBLEM", "effect": "DETOUR", "header_text.translation.text": "Shuttles",
+         "created_datetime": "2026-09-16 07:10:00", "closed_datetime": None,
+         "active_period.end_datetime": "2026-09-16 09:10:00", "informed_entity.route_id": "Green-C",
+         "informed_entity.stop_id": "70223"},
+        {"id": 1, "cause": "TECHNICAL_PROBLEM", "effect": "DETOUR", "header_text.translation.text": "Shuttles",
+         "created_datetime": "2026-09-16 07:10:00", "closed_datetime": "2026-09-16 07:34:00",
+         "active_period.end_datetime": None, "informed_entity.route_id": "Green-C",
+         "informed_entity.stop_id": "70223"},
+        # Never closed: ends with its active period.
+        {"id": 2, "cause": None, "effect": "OTHER_EFFECT", "header_text.translation.text": "Delays",
+         "created_datetime": "2026-09-16 14:23:00", "closed_datetime": None,
+         "active_period.end_datetime": "2026-09-16 16:23:00", "informed_entity.route_id": "Red",
+         "informed_entity.stop_id": None},
+        # Left out: an elevator outage, a bus alert, and one raised the day before.
+        {"id": 3, "cause": None, "effect": "ACCESSIBILITY_ISSUE", "header_text.translation.text": "Elevator",
+         "created_datetime": "2026-09-16 08:00:00", "closed_datetime": None,
+         "active_period.end_datetime": None, "informed_entity.route_id": "Red", "informed_entity.stop_id": None},
+        {"id": 4, "cause": None, "effect": "DETOUR", "header_text.translation.text": "Bus",
+         "created_datetime": "2026-09-16 08:00:00", "closed_datetime": None,
+         "active_period.end_datetime": None, "informed_entity.route_id": "1", "informed_entity.stop_id": None},
+        {"id": 5, "cause": None, "effect": "OTHER_EFFECT", "header_text.translation.text": "Yesterday",
+         "created_datetime": "2026-09-16 02:00:00", "closed_datetime": None,
+         "active_period.end_datetime": None, "informed_entity.route_id": "Red", "informed_entity.stop_id": None},
+    ]
+    alerts = pd.DataFrame(rows)
+    for col in ("created_datetime", "closed_datetime", "active_period.end_datetime"):
+        alerts[col] = pd.to_datetime(alerts[col])
+    # Service-day anchor: local midnight of 16 September (EDT, UTC-4).
+    anchor = int(pd.Timestamp("2026-09-16", tz="America/New_York").timestamp())
+    incidents = export_map.build_incidents(alerts, "2026-09-16", anchor, {"place-clmnl": 7},
+                                           {"70223": "place-clmnl"})
+    assert [i["id"] for i in incidents] == ["1", "2"]
+    shuttle, delay = incidents
+    assert (shuttle["start"], shuttle["end"]) == (7 * 3600 + 600, 7 * 3600 + 34 * 60)
+    assert shuttle["stations"] == [7] and shuttle["lines"] == ["Green-C"]
+    assert delay["end"] == 16 * 3600 + 23 * 60 and delay["stations"] == []
+
+
+def test_no_alerts_archive_means_no_incidents():
+    assert export_map.build_incidents(pd.DataFrame(), "2026-09-16", 0, {}, {}) == []

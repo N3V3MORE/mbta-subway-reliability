@@ -8,7 +8,8 @@ Two kinds of JSON file, both written to ``map/public/data/``:
 * ``replay-<date>.json``: every observed trip on one service day. For each stop
   it records the station, when the train arrived and left, how late it was for
   riders there (``clean.lateness``), its delay against the timetable, and the
-  model's prediction of that delay.
+  model's prediction of that delay, plus the service incidents the MBTA reported
+  that day (its alerts archive): when, on which lines and stations, and what.
 
 Positions in the app are interpolated only between a trip's *observed* stops,
 so no train is ever drawn where the data does not place it. Shapes and line
@@ -24,7 +25,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import clean, config
+from . import clean, collect_lamp, config
+from .features import NON_SERVICE_ALERT_EFFECTS
 from .collect_v3 import load_stations
 from .http import get_json, make_session
 
@@ -301,6 +303,68 @@ def build_replay(day: pd.DataFrame, predictions: pd.DataFrame, station_index: di
     }
 
 
+_ALERT_COLUMNS = ["id", "cause", "effect", "header_text.translation.text", "created_datetime",
+                  "closed_datetime", "active_period.end_datetime", "informed_entity.route_id",
+                  "informed_entity.stop_id"]
+#: The service day runs from 03:00 to 03:00 the next morning, local time.
+SERVICE_DAY_START = pd.Timedelta(hours=3)
+
+
+def build_incidents(alerts: pd.DataFrame, date: str, anchor: int, station_index: dict[str, int],
+                    stop_parent: dict[str, str]) -> list[dict]:
+    """Service incidents reported on one service day, for the replay timeline.
+
+    The archive has one row per alert, informed entity and update; an alert
+    starts when it was created and ends when it was closed (or, if never closed,
+    when its active period ran out). Times are seconds after the replay's anchor,
+    like the trips'. Elevator and escalator outages are left out, as in the
+    features. Alert times are local, without a zone.
+    """
+    if alerts.empty:
+        return []
+    alerts = alerts[alerts["informed_entity.route_id"].isin(config.SUBWAY_ROUTES)
+                    & ~alerts["effect"].isin(NON_SERVICE_ALERT_EFFECTS)]
+    start = pd.Timestamp(date) + SERVICE_DAY_START
+    created = pd.to_datetime(alerts["created_datetime"], errors="coerce")
+    alerts = alerts[(created >= start) & (created < start + pd.Timedelta(days=1))]
+
+    def seconds(moment) -> int | None:
+        if pd.isna(moment):
+            return None
+        epoch = pd.Timestamp(moment).tz_localize(config.SERVICE_TZ, ambiguous="NaT",
+                                                 nonexistent="shift_forward")
+        return None if pd.isna(epoch) else int(epoch.timestamp()) - anchor
+
+    incidents = []
+    for alert_id, rows in alerts.groupby("id", sort=False):
+        rows = rows.sort_values("created_datetime")
+        end = pd.to_datetime(rows["closed_datetime"], errors="coerce").max()
+        if pd.isna(end):
+            end = pd.to_datetime(rows["active_period.end_datetime"], errors="coerce").max()
+        stops = {stop_parent.get(str(s), str(s)) for s in rows["informed_entity.stop_id"].dropna()}
+        headers = rows["header_text.translation.text"].dropna()
+        incidents.append({
+            "id": str(alert_id),
+            "start": seconds(rows["created_datetime"].iloc[0]),
+            "end": seconds(end),
+            "lines": sorted(rows["informed_entity.route_id"].astype(str).unique()),
+            "stations": sorted(station_index[s] for s in stops if s in station_index),
+            "effect": str(rows["effect"].iloc[-1]),
+            "cause": None if pd.isna(rows["cause"].iloc[-1]) else str(rows["cause"].iloc[-1]),
+            "text": str(headers.iloc[-1]) if len(headers) else "",
+        })
+    return sorted((i for i in incidents if i["start"] is not None), key=lambda i: i["start"])
+
+
+def load_day_alerts() -> pd.DataFrame:
+    """The alerts archive, or an empty frame when it has not been downloaded."""
+    try:
+        return collect_lamp.load_alerts(columns=_ALERT_COLUMNS)
+    except FileNotFoundError:
+        log.warning("no alerts archive: replays will have no incidents")
+        return pd.DataFrame(columns=_ALERT_COLUMNS)
+
+
 def _dump(path: Path, payload: dict) -> int:
     text = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
     path.write_text(text, encoding="utf-8")
@@ -323,6 +387,8 @@ def run(days: tuple[tuple[str, str, str, str], ...] = DEFAULT_DAYS, out_dir: Pat
     all_coords = np.array([c for p in patterns for c in p["coords"]])
     window = json.loads((config.DATA_DIR / "analysis_window.json").read_text(encoding="utf-8"))
 
+    alerts = load_day_alerts()
+    stop_parent = dict(zip(trips["stop_id"].astype(str), trips["parent_station"].astype(str)))
     replays, written = [], {}
     for run_name, date, label, note in days:
         service_date = int(date.replace("-", ""))
@@ -339,6 +405,8 @@ def run(days: tuple[tuple[str, str, str, str], ...] = DEFAULT_DAYS, out_dir: Pat
             columns=["service_date_parsed", "trip_id", "stop_id", "predicted_delay", "persistence_delay"])
         predictions = predictions[predictions.pop("service_date_parsed").astype(str) == date]
         replay = build_replay(day, predictions, station_index, patterns)
+        replay["incidents"] = build_incidents(alerts, date, replay["anchor"], station_index, stop_parent)
+        replay["summary"]["incidents"] = len(replay["incidents"])
         file = f"replay-{date}.json"
         written[file] = _dump(out_dir / file, {"date": date, "label": label, **replay})
         replays.append({"date": date, "label": label, "note": note, "file": file, **replay["summary"]})

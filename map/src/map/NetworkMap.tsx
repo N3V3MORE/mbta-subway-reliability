@@ -19,6 +19,8 @@ export type Selection = { id: string; kind: 'station' | 'trip' }
 
 type Props = {
   focus?: { stationId: string }
+  /** Stations named by an MBTA alert in effect at the replay's time. */
+  incidentStations: string[]
   metric: MetricId
   mode: Mode
   network: PreparedNetwork
@@ -29,6 +31,8 @@ type Props = {
 }
 
 const COLUMN_MAX_METRES = 1_600
+/** Stations under an MBTA alert: distinct from the lateness ramp and the selection amber. */
+const INCIDENT_COLOR = '#ff7a59'
 const PITCH: Record<Mode, number> = { network: 52, replay: 40 }
 const CLICKABLE = ['stations', 'interchanges', 'station-columns', 'trains', 'train-columns']
 const collection = (features: Feature[]): FeatureCollection => ({ features, type: 'FeatureCollection' })
@@ -92,7 +96,7 @@ function addLayers(map: MapLibreMap, network: PreparedNetwork) {
     }))),
     type: 'geojson',
   })
-  for (const id of ['station-columns', 'trains', 'train-columns', 'selection']) map.addSource(id, { data: EMPTY, type: 'geojson' })
+  for (const id of ['station-columns', 'trains', 'train-columns', 'selection', 'incidents']) map.addSource(id, { data: EMPTY, type: 'geojson' })
 
   const interchange: ExpressionSpecification = ['==', ['get', 'interchange'], true]
   const layers: Parameters<MapLibreMap['addLayer']>[0][] = [
@@ -109,6 +113,7 @@ function addLayers(map: MapLibreMap, network: PreparedNetwork) {
     { id: 'line-core', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': width(2.6, 6) }, source: 'lines', type: 'line' },
     { filter: ['!', interchange], id: 'stations', paint: { 'circle-color': '#f5eee3', 'circle-radius': width(2, 5), 'circle-stroke-color': '#171613', 'circle-stroke-width': 1 }, source: 'stations', type: 'circle' },
     { filter: interchange, id: 'interchanges', paint: { 'circle-color': '#f5eee3', 'circle-radius': width(3.2, 8), 'circle-stroke-color': '#171613', 'circle-stroke-width': 2.4 }, source: 'stations', type: 'circle' },
+    { id: 'incident-stations', paint: { 'circle-color': 'rgba(255, 122, 89, 0.18)', 'circle-radius': width(7, 16), 'circle-stroke-color': INCIDENT_COLOR, 'circle-stroke-width': width(1.5, 2.5) }, source: 'incidents', type: 'circle' },
     { id: 'station-columns', paint: { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-opacity': 0.86 }, source: 'station-columns', type: 'fill-extrusion' },
     { id: 'train-columns', paint: { 'fill-extrusion-color': ['get', 'band'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-opacity': 0.8 }, source: 'train-columns', type: 'fill-extrusion' },
     { id: 'trains', paint: { 'circle-color': ['get', 'band'], 'circle-radius': width(3.2, 6.5), 'circle-stroke-color': ['get', 'line'], 'circle-stroke-width': width(1.6, 3) }, source: 'trains', type: 'circle' },
@@ -144,7 +149,7 @@ function overview(map: MapLibreMap, network: PreparedNetwork, mode: Mode) {
 
 const source = (map: MapLibreMap, id: string) => map.getSource(id) as GeoJSONSource
 
-export function NetworkMap({ focus, metric, mode, network, onSelect, rideTripId, selection, vehicles }: Props) {
+export function NetworkMap({ focus, incidentStations, metric, mode, network, onSelect, rideTripId, selection, vehicles }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const [loaded, setLoaded] = useState(false)
@@ -208,6 +213,15 @@ export function NetworkMap({ focus, metric, mode, network, onSelect, rideTripId,
     source(map, 'train-columns').setData(columns)
     map.getContainer().dataset.trains = String(vehicles.length)
   }, [loaded, network, selectedTripId, vehicles])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!loaded || !map) return
+    source(map, 'incidents').setData(collection(incidentStations.flatMap((id): Feature[] => {
+      const station = network.stationById.get(id)
+      return station ? [{ geometry: { coordinates: station.coords, type: 'Point' }, properties: {}, type: 'Feature' }] : []
+    })))
+  }, [incidentStations, loaded, network])
 
   const selectedStation = selection?.kind === 'station' ? network.stationById.get(selection.id) : undefined
   useEffect(() => {

@@ -1,13 +1,13 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
-import { MapPin, Pause, Play, RotateCcw, Train, X } from 'lucide-react'
+import { MapPin, Pause, Play, RotateCcw, Train, TriangleAlert, X } from 'lucide-react'
 import { StationSearch } from './components/StationSearch'
 import { formatClock, formatDate, formatDelay, formatPercent } from './data/format'
 import {
   isInterchange, loadNetwork, loadReplay, METRICS, type MetricId, type PreparedNetwork, RELIABILITY_COLORS, UNCLUSTERED_COLOR,
 } from './data/network'
-import { DELAY_BANDS, type PreparedReplay, type PreparedTrip, stopAt, vehiclesAt } from './data/replay'
+import { activeIncidents, DELAY_BANDS, type PreparedReplay, type PreparedTrip, stopAt, vehiclesAt } from './data/replay'
 import type { Mode, Selection } from './map/NetworkMap'
-import type { Station } from './types'
+import type { Incident, Station } from './types'
 
 const NetworkMap = lazy(() => import('./map/NetworkMap').then((module) => ({ default: module.NetworkMap })))
 
@@ -51,7 +51,32 @@ function NetworkLegend({ metric, network, onMetric }: { metric: MetricId; networ
   )
 }
 
-function ReplayNote({ network, replay, dayIndex }: { dayIndex: number; network: PreparedNetwork; replay: PreparedReplay | null }) {
+/** Line colours for an incident's lines, falling back to the text colour. */
+function IncidentLines({ incident, network }: { incident: Incident; network: PreparedNetwork }) {
+  return <>{incident.lines.map((id) => <Swatch color={network.lineById.get(id)?.color ?? '#f1e9dd'} key={id} />)}</>
+}
+
+function IncidentList({ active, network, total }: { active: Incident[]; network: PreparedNetwork; total: number }) {
+  return (
+    <section aria-label="Incidents in effect" className="incidents">
+      <span className="mono kicker"><TriangleAlert size={11} /> MBTA ALERTS IN EFFECT</span>
+      {active.length === 0
+        ? <p>None at this time. {total} reported this day; the marks above the timeline jump to them.</p>
+        : (
+          <ul>
+            {active.map((incident) => (
+              <li key={incident.id}>
+                <span className="mono">{formatClock(incident.start)}</span>
+                <span><IncidentLines incident={incident} network={network} />{incident.text}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+    </section>
+  )
+}
+
+function ReplayNote({ network, replay, dayIndex, seconds }: { dayIndex: number; network: PreparedNetwork; replay: PreparedReplay | null; seconds: number }) {
   const day = network.replays[dayIndex]
   return (
     <aside aria-label="Replay day" aria-live="polite" className="note">
@@ -63,13 +88,14 @@ function ReplayNote({ network, replay, dayIndex }: { dayIndex: number; network: 
       <ul aria-label="Train colour and column height: extra wait at the last stop" className="legend">
         {DELAY_BANDS.map((band) => <li key={band.label}><Swatch color={band.color} />{band.label}</li>)}
       </ul>
-      {replay ? null : <p>Loading trains…</p>}
+      {replay ? <IncidentList active={activeIncidents(replay.incidents, seconds)} network={network} total={replay.incidents.length} /> : <p>Loading trains…</p>}
     </aside>
   )
 }
 
-function ReplayTimeline({ dayIndex, network, onDay, onPlay, onSeconds, onSpeed, playing, seconds, speed, timing, trains }: {
+function ReplayTimeline({ dayIndex, incidents, network, onDay, onPlay, onSeconds, onSpeed, playing, seconds, speed, timing, trains }: {
   dayIndex: number
+  incidents: Incident[]
   network: PreparedNetwork
   onDay: (index: number) => void
   onPlay: () => void
@@ -90,6 +116,20 @@ function ReplayTimeline({ dayIndex, network, onDay, onPlay, onSeconds, onSpeed, 
         </select>
         <strong className="mono">{formatClock(seconds)}</strong>
       </div>
+      {timing && incidents.length ? (
+        <div className="timeline-incidents">
+          {incidents.filter((incident) => incident.start >= start && incident.start <= end).map((incident) => (
+            <button
+              aria-label={`Jump to ${formatClock(incident.start)}: ${incident.text}`}
+              key={incident.id}
+              onClick={() => onSeconds(incident.start)}
+              style={{ left: `${((incident.start - start) / (end - start)) * 100}%` }}
+              title={`${formatClock(incident.start)} · ${incident.text}`}
+              type="button"
+            />
+          ))}
+        </div>
+      ) : null}
       <input aria-label="Replay time" aria-valuetext={formatClock(seconds)} disabled={!timing} max={end} min={start} onChange={(event) => onSeconds(Number(event.target.value))} step={30} type="range" value={seconds} />
       <div aria-hidden="true" className="timeline-ticks">
         {[0, 1, 2, 3, 4].map((i) => <span key={i}>{formatClock(start + ((end - start) * i) / 4)}</span>)}
@@ -101,7 +141,19 @@ function ReplayTimeline({ dayIndex, network, onDay, onPlay, onSeconds, onSpeed, 
         <button aria-label="Change replay speed" className="speed-button mono" onClick={onSpeed} type="button">{speed / 60} min/s</button>
         <p>{timing ? `${trains} trains in service. Positions are interpolated only between observed stops.` : 'Loading trains…'}</p>
       </div>
+      {timing ? <CurrentIncident incidents={incidents} network={network} seconds={seconds} /> : null}
     </section>
+  )
+}
+
+/** The latest incident in effect, for screens too narrow for the replay note. */
+function CurrentIncident({ incidents, network, seconds }: { incidents: Incident[]; network: PreparedNetwork; seconds: number }) {
+  const [latest] = activeIncidents(incidents, seconds)
+  if (!latest) return null
+  return (
+    <p className="timeline-incident">
+      <TriangleAlert size={12} /> <span className="mono">{formatClock(latest.start)}</span> <IncidentLines incident={latest} network={network} />{latest.text}
+    </p>
   )
 }
 
@@ -226,6 +278,12 @@ function Explorer({ network }: { network: PreparedNetwork }) {
   }, [playing, speed, timing])
 
   const vehicles = useMemo(() => mode === 'replay' && replay ? vehiclesAt(replay, network.patterns, seconds) : [], [mode, network, replay, seconds])
+  // Stations under an alert in effect now, as a key so the map redraws only when the set changes.
+  const incidentKey = mode === 'replay' && replay
+    ? [...new Set(activeIncidents(replay.incidents, seconds).flatMap((incident) => incident.stations.map((i) => network.stations[i]?.id ?? '')))]
+        .filter(Boolean).sort().join(',')
+    : ''
+  const incidentStations = useMemo(() => (incidentKey ? incidentKey.split(',') : []), [incidentKey])
   const station = selection?.kind === 'station' ? network.stationById.get(selection.id) : undefined
   const trip = selection?.kind === 'trip' ? replay?.tripById.get(selection.id) : undefined
 
@@ -238,6 +296,7 @@ function Explorer({ network }: { network: PreparedNetwork }) {
       <Suspense fallback={<div className="map-loading">Loading the map…</div>}>
         <NetworkMap
           focus={focus}
+          incidentStations={incidentStations}
           metric={metric}
           mode={mode}
           network={network}
@@ -258,9 +317,9 @@ function Explorer({ network }: { network: PreparedNetwork }) {
       {mode === 'network' ? <NetworkLegend metric={metric} network={network} onMetric={setMetric} /> : null}
       {mode === 'replay' && day ? (
         <>
-          <ReplayNote dayIndex={dayIndex} network={network} replay={replay} />
+          <ReplayNote dayIndex={dayIndex} network={network} replay={replay} seconds={seconds} />
           <ReplayTimeline
-            dayIndex={dayIndex} network={network} onDay={changeDay} onPlay={() => setPlaying((value) => !value)}
+            dayIndex={dayIndex} incidents={replay?.incidents ?? []} network={network} onDay={changeDay} onPlay={() => setPlaying((value) => !value)}
             onSeconds={setSeconds} onSpeed={() => setSpeed((value) => SPEEDS[(SPEEDS.indexOf(value) + 1) % SPEEDS.length])}
             playing={playing} seconds={seconds} speed={speed} timing={timing} trains={vehicles.length}
           />

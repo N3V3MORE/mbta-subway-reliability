@@ -1,9 +1,11 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { MapKey } from './components/MapKey'
 import { StationSearch } from './components/StationSearch'
 import { Timeline } from './components/Timeline'
-import { loadNetwork, loadReplay, loadResults, type MetricId, type PreparedNetwork } from './data/network'
-import { activeIncidents, type PreparedReplay, vehiclesAt } from './data/replay'
-import { type LostMetric, lostPlaces, stretchGeometry, valueOf } from './data/lost'
+import { clusterLabel, lineName, seconds as formatSeconds } from './data/labels'
+import { loadNetwork, loadReplay, loadResults, METRICS, type MetricId, type PreparedNetwork } from './data/network'
+import { activeIncidents, bandOf, DELAY_BANDS, type PreparedReplay, stopAt, vehiclesAt } from './data/replay'
+import { type LostMetric, lostPlaces, placeName, stretchGeometry, valueOf } from './data/lost'
 import type { LostLayer, Mode, Selection } from './map/NetworkMap'
 import { AboutPanel } from './panels/AboutPanel'
 import { LostPanel } from './panels/LostPanel'
@@ -11,15 +13,18 @@ import { NetworkPanel } from './panels/NetworkPanel'
 import { ReplayPanel } from './panels/ReplayPanel'
 import { ResultsPanel } from './panels/ResultsPanel'
 import { StationsPanel } from './panels/StationsPanel'
+import { StoryPanel } from './panels/StoryPanel'
+import type { StoryView } from './panels/storyChapters'
 import type { LonLat, Results } from './types'
 
 const NetworkMap = lazy(() => import('./map/NetworkMap').then((module) => ({ default: module.NetworkMap })))
 
 const PAGES = [
+  { id: 'story', label: 'Story' },
   { id: 'network', label: 'Network' },
   { id: 'replay', label: 'Replay' },
   { id: 'lost', label: 'Time lost' },
-  { id: 'results', label: 'Results' },
+  { id: 'results', label: 'All results' },
   { id: 'stations', label: 'Stations' },
   { id: 'about', label: 'About' },
 ] as const
@@ -34,7 +39,7 @@ function readHash(): { page: Page; param?: string; sub?: string } {
   const [, page, param, sub] = window.location.hash.split('/')
   const known = PAGES.find((p) => p.id === page)
   const decode = (value?: string) => (value ? decodeURIComponent(value) : undefined)
-  return { page: known ? known.id : 'network', param: decode(param), sub: decode(sub) }
+  return { page: known ? known.id : 'story', param: decode(param), sub: decode(sub) }
 }
 
 function useRoute() {
@@ -59,8 +64,14 @@ function Workspace({ network, results }: { network: PreparedNetwork; results: Re
   const [focus, setFocus] = useState<{ center?: LonLat; stationId?: string }>()
   const [lostMetric, setLostMetric] = useState<LostMetric>('train')
 
+  // The story sets what the map shows as each chapter is read.
+  const [storyView, setStoryView] = useState<StoryView>({ metric: 'entries', mode: 'network' })
+  const inStory = page === 'story'
+
   // Replay state lives here so leaving the replay and coming back keeps your place.
-  const dayIndex = Math.max(0, network.replays.findIndex((day) => day.date === (page === 'replay' ? param : undefined)))
+  // The story can ask for a replay day too.
+  const wantedDay = page === 'replay' ? param : inStory && storyView.mode === 'replay' ? storyView.replayDate : undefined
+  const dayIndex = Math.max(0, network.replays.findIndex((day) => day.date === wantedDay))
   const day = network.replays[dayIndex]
   const [replay, setReplay] = useState<PreparedReplay | null>(null)
   const [seconds, setSeconds] = useState(MORNING_PEAK)
@@ -72,7 +83,15 @@ function Workspace({ network, results }: { network: PreparedNetwork; results: Re
   const [lastDay, setLastDay] = useState(day?.date)
   useEffect(() => { if (page === 'replay' && day) setLastDay(day.date) }, [day, page])
 
-  const mode: Mode = page === 'replay' ? 'replay' : page === 'lost' ? 'lost' : 'network'
+  const mode: Mode = inStory ? storyView.mode : page === 'replay' ? 'replay' : page === 'lost' ? 'lost' : 'network'
+  const shownMetric = inStory ? storyView.metric ?? 'late' : metric
+  const shownLostMetric = inStory ? storyView.lostMetric ?? 'train' : lostMetric
+  // A chapter showing a replay freezes it at its moment.
+  useEffect(() => {
+    if (!inStory || storyView.seconds === undefined) return
+    setPlaying(false)
+    setSeconds(storyView.seconds)
+  }, [inStory, storyView])
 
   // "Time lost": every place of the chosen period, scaled to the worst one on the chosen measure.
   const geometry = useMemo(() => stretchGeometry(network.patterns), [network])
@@ -80,19 +99,19 @@ function Workspace({ network, results }: { network: PreparedNetwork; results: Re
   const places = useMemo(() => lostPlaces(lostPeriod), [lostPeriod])
   const lostLayer = useMemo<LostLayer | undefined>(() => {
     if (!places.length) return undefined
-    const scale = (kind: string) => Math.max(...places.filter((p) => p.kind === kind).map((p) => valueOf(p, lostMetric)), 1e-9)
+    const scale = (kind: string) => Math.max(...places.filter((p) => p.kind === kind).map((p) => valueOf(p, shownLostMetric)), 1e-9)
     const [maxStretch, maxPlatform] = [scale('stretch'), scale('platform')]
     return {
       platforms: places.flatMap((p) => {
         const station = network.stationById.get(p.stations[0])
-        return p.kind === 'platform' && station ? [{ coords: station.coords, id: p.id, t: valueOf(p, lostMetric) / maxPlatform }] : []
+        return p.kind === 'platform' && station ? [{ coords: station.coords, id: p.id, t: valueOf(p, shownLostMetric) / maxPlatform }] : []
       }),
       stretches: places.flatMap((p) => {
         const coords = geometry.get(p.id)
-        return p.kind === 'stretch' && coords ? [{ coords, id: p.id, t: valueOf(p, lostMetric) / maxStretch }] : []
+        return p.kind === 'stretch' && coords ? [{ coords, id: p.id, t: valueOf(p, shownLostMetric) / maxStretch }] : []
       }),
     }
-  }, [geometry, lostMetric, network, places])
+  }, [geometry, shownLostMetric, network, places])
   const placeId = page === 'lost' ? param : undefined
   const selectPlace = (id: string | undefined, fly = true) => {
     go('lost', id)
@@ -161,8 +180,46 @@ function Workspace({ network, results }: { network: PreparedNetwork; results: Re
       ? (placeId ? { id: placeId, kind: 'place' } : null)
       : (stationId ? { id: stationId, kind: 'station' } : null)
 
+  // What the map says on hover, in the words of the view it is in.
+  const describe = (target: Selection): React.ReactNode => {
+    if (target.kind === 'station') {
+      const s = network.stationById.get(target.id)
+      if (!s) return null
+      const value = METRICS[shownMetric].value(s)
+      return (
+        <>
+          <b>{s.name}</b>
+          <span>{METRICS[shownMetric].label}: {value === null ? 'no data' : METRICS[shownMetric].format(value)}</span>
+          {s.reliability ? <span>{clusterLabel(s.reliability)} station</span> : null}
+        </>
+      )
+    }
+    if (target.kind === 'trip') {
+      const t = replay?.tripById.get(target.id)
+      if (!t) return null
+      const stop = stopAt(t.a, seconds)
+      return (
+        <>
+          <b>{lineName(network.lineById.get(t.line), t.line)} to {t.dest}</b>
+          <span>{DELAY_BANDS[bandOf(t.l[stop])].label} at {network.stations[t.s[stop]]?.name}</span>
+          <span>Click to follow it</span>
+        </>
+      )
+    }
+    const place = places.find((p) => p.id === target.id)
+    if (!place) return null
+    return (
+      <>
+        <b>{placeName(network, place)}</b>
+        <span>{formatSeconds(place.mean)} lost per train, on average</span>
+        <span>{Math.round(place.perDay).toLocaleString('en-US')} minutes a day, all trains</span>
+      </>
+    )
+  }
+
   let panel: React.ReactNode
-  if (page === 'network') panel = <NetworkPanel metric={metric} network={network} onMetric={setMetric} onSelect={(id) => selectStation(id)} selected={station} />
+  if (page === 'story') panel = <StoryPanel network={network} onView={setStoryView} results={results} />
+  else if (page === 'network') panel = <NetworkPanel metric={metric} network={network} onMetric={setMetric} onSelect={(id) => selectStation(id)} selected={station} />
   else if (page === 'replay') {
     panel = (
       <ReplayPanel
@@ -184,7 +241,7 @@ function Workspace({ network, results }: { network: PreparedNetwork; results: Re
   return (
     <div className="app">
       <header className="topbar">
-        <a className="wordmark" href="#/network" title="The T, as it actually ran">
+        <a className="wordmark" href="#/story" title="The T, as it actually ran">
           <svg aria-hidden="true" viewBox="0 0 20 20">
             <rect fill="var(--series-persistence)" height="6" rx="1" width="3.6" x="2" y="12" />
             <rect fill="var(--text)" height="10" rx="1" width="3.6" x="8.2" y="8" />
@@ -204,15 +261,17 @@ function Workspace({ network, results }: { network: PreparedNetwork; results: Re
       </header>
 
       <div className="workspace" data-page={page}>
-        <aside aria-label={PAGES.find((p) => p.id === page)?.label} className="panel" key={page}>{panel}</aside>
+        <aside aria-label={PAGES.find((p) => p.id === page)?.label} className="panel" key={page}><div className="panel-inner">{panel}</div></aside>
         <main className="stage">
           <Suspense fallback={<div className="map-loading">Loading the map…</div>}>
             <NetworkMap
+              describe={describe}
               focus={focus}
+              frame={page}
               highlightLine={page === 'results' ? highlightLine : undefined}
               incidentStations={incidentStations}
               lost={lostLayer}
-              metric={metric}
+              metric={shownMetric}
               mode={mode}
               network={network}
               onSelect={(next) => {
@@ -221,11 +280,13 @@ function Workspace({ network, results }: { network: PreparedNetwork; results: Re
                 else selectStation(next?.kind === 'station' ? next.id : undefined, false)
               }}
               rideTripId={rideTripId}
+              scrollZoom={!inStory}
               selection={selection}
               vehicles={vehicles}
             />
           </Suspense>
-          {mode === 'replay' ? (
+          <MapKey lostMetric={shownLostMetric} metric={shownMetric} mode={mode} />
+          {mode === 'replay' && !inStory ? (
             <Timeline
               incidents={replay?.incidents ?? []} onPlay={() => setPlaying((value) => !value)} onSeconds={setSeconds}
               onSpeed={() => setSpeed((value) => SPEEDS[(SPEEDS.indexOf(value) + 1) % SPEEDS.length])}

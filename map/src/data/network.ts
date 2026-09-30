@@ -12,21 +12,21 @@ export type MetricId = 'late' | 'p90' | 'entries'
 /** What a station column's height can show. */
 export const METRICS: Record<MetricId, { detail: string; format: (value: number) => string; label: string; value: (station: Station) => number | null }> = {
   late: {
-    detail: 'Share of arrivals where riders waited over 5 min longer than planned',
+    detail: 'Share of trains that kept riders waiting 5+ minutes longer than planned',
     format: formatPercent,
-    label: 'Late share',
+    label: 'Late trains',
     value: (station) => station.onTime === null ? null : 1 - station.onTime,
   },
   p90: {
-    detail: 'Extra wait on a bad day: 1 arrival in 10 is later',
+    detail: 'Extra wait on a bad day (1 train in 10 is later than this), in min:sec',
     format: formatDelay,
     label: 'Bad-day wait',
     value: (station) => station.p90,
   },
   entries: {
-    detail: 'Mean faregate entries per day; surface stops are ungated',
+    detail: 'People entering through the faregates on an average day (street-level stops have no gates)',
     format: (value) => Math.round(value).toLocaleString('en-US'),
-    label: 'Daily entries',
+    label: 'Busyness',
     value: (station) => station.entries,
   },
 }

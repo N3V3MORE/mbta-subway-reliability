@@ -57,7 +57,8 @@ export function BarList({ bars, format, max }: { bars: Bar[]; format: (value: nu
         <li key={bar.key} title={`${typeof bar.label === 'string' ? bar.label : bar.key}: ${format(bar.value)}`}>
           <span className="bar-label">{bar.label}{bar.note ? <small>{bar.note}</small> : null}</span>
           <span className="bar-track">
-            <span className="bar-fill" style={{ background: bar.color ?? 'var(--series-context)', width: `${Math.max(0.5, (bar.value / top) * 100)}%` }} />
+            {/* Scaled within the track less room for the value, so every bar keeps its proportion. */}
+            <span className="bar-fill" style={{ background: bar.color ?? 'var(--series-context)', width: `calc((100% - 96px) * ${Math.max(0.005, bar.value / top)})` }} />
             <span className="bar-value">{format(bar.value)}</span>
           </span>
         </li>

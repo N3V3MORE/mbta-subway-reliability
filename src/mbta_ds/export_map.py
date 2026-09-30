@@ -490,6 +490,13 @@ def build_period(processed: Path) -> dict:
         out.update(_arrival_bands(processed))
     if (processed / "segments.json").exists():
         out["lost"] = _time_lost(processed)
+    clusters = processed / "cluster_metrics.json"
+    if clusters.exists():
+        cross = json.loads(clusters.read_text(encoding="utf-8")).get("cross_track")
+        if cross:
+            # Is a station's demand type related to its reliability? (Track B's test.)
+            out["crossTrack"] = {"pValue": round(float(cross["chi2_p_value"]), 3),
+                                 "lateByDemand": cross.get("mean_lateness_by_demand_cluster", {})}
     return out
 
 

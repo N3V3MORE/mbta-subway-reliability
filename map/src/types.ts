@@ -110,6 +110,8 @@ export type Period = {
   lateByHour?: { line: string; shares: (number | null)[] }[]
   lateShare?: number
   lost?: TimeLost
+  /** Track B's test of whether a station's demand type is related to its reliability. */
+  crossTrack?: { lateByDemand: Record<string, number>; pValue: number }
   note: string
   ranges?: { coverage: number; dayType: string; stops: number; width: number }[]
   regression: ModelScore[]

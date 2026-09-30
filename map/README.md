@@ -4,8 +4,16 @@ The project's interface: a 3D map of the MBTA subway and every result from the
 pipeline in `src/mbta_ds`, in one app (React, MapLibre, Vite). It began from the
 [Mini Delhi](https://github.com/N3V3MORE/mini-metro-delhi) map app.
 
-The map is always on screen; a panel docked beside it changes with the view:
+The map is always on screen; a panel docked beside it changes with the view, and
+takes the room that view needs: more for reading, the charts and the station
+table, less where the map is the subject. Hover anything on the map for its
+numbers; a key in its corner says what height and colour mean.
 
+* **Story** (the landing page) tells what the project found, in short chapters:
+  how late trains run, whether it can be predicted, where time is lost, what does
+  not help, what cannot be foreseen, and whether it holds up. Each has one number
+  and one chart, all from `results.json`, and as a chapter scrolls into view the
+  map changes to show it.
 * **Network** stands every station up as a column. Its height is the measure you
   pick: the share of arrivals more than 5 minutes late, the extra wait on a bad
   day (90th percentile) or mean daily faregate entries. Its colour is the

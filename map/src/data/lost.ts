@@ -7,7 +7,7 @@ export type LostMetric = 'train' | 'day'
 
 export const LOST_METRICS: Record<LostMetric, { detail: string; label: string }> = {
   train: { detail: 'Average seconds a train loses there, beyond a good run', label: 'Per train' },
-  day: { detail: 'Train-minutes lost there per service day, all trains together', label: 'Per day' },
+  day: { detail: 'Minutes lost there on an average day, all trains added together', label: 'Per day' },
 }
 
 /** One place on the map, both directions (and, at a station, every line) together. */

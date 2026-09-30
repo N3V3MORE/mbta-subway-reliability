@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import {
   AttributionControl, type ExpressionSpecification, type GeoJSONSource, Map as MapLibreMap, NavigationControl, setWorkerUrl, type StyleSpecification,
 } from 'maplibre-gl'
@@ -25,6 +25,12 @@ export type LostLayer = {
 }
 
 type Props = {
+  /** What to show on hover for a station, train or place; nothing when it returns null. */
+  describe?: (target: Selection) => ReactNode
+  /** Changes when the space around the map changes (a new view): the network is framed again. */
+  frame?: string
+  /** Scroll-wheel zoom; off where the map illustrates a page being scrolled. */
+  scrollZoom?: boolean
   /** Fly here: a station, or any point (a stretch of track's middle). */
   focus?: { center?: LonLat; stationId?: string }
   /** A route to bring forward, dimming the rest (from hovering a results chart). */
@@ -169,20 +175,29 @@ function overview(map: MapLibreMap, network: PreparedNetwork, mode: Mode) {
   const bottom = overlaid ? 170 : compact ? 40 : 90
   const camera = map.cameraForBounds(network.bounds, {
     bearing: -14,
-    padding: compact ? { bottom, left: 16, right: 16, top: 16 } : { bottom, left: 48, right: 64, top: 24 },
+    padding: compact ? { bottom, left: 16, right: 16, top: 16 } : { bottom, left: 40, right: 64, top: 24 },
   })
   if (camera?.zoom === undefined) return
   // The fit is computed flat; tilting foreshortens the tall network, so win back a little of it.
   const zoom = camera.zoom + 0.25 * Math.log2(1 / Math.cos((pitch * Math.PI) / 180))
+  // Zooming out further than a little past the whole network only shows empty country.
+  map.setMinZoom(Math.max(8, zoom - 0.8))
   map.easeTo({ ...camera, duration: reducedMotion() ? 0 : 900, pitch, zoom })
+}
+
+/** The network's bounds with room around them: panning stops before the map runs out of subway. */
+function panLimits([[west, south], [east, north]]: [LonLat, LonLat]): [LonLat, LonLat] {
+  const [dx, dy] = [(east - west) * 0.35, (north - south) * 0.35]
+  return [[west - dx, south - dy], [east + dx, north + dy]]
 }
 
 const source = (map: MapLibreMap, id: string) => map.getSource(id) as GeoJSONSource
 
-export function NetworkMap({ focus, highlightLine, incidentStations, lost, metric, mode, network, onSelect, rideTripId, selection, vehicles }: Props) {
+export function NetworkMap({ describe, focus, frame, highlightLine, incidentStations, lost, metric, mode, network, onSelect, rideTripId, scrollZoom = true, selection, vehicles }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [hover, setHover] = useState<{ target: Selection; x: number; y: number } | null>(null)
   const onSelectRef = useRef(onSelect)
   const networkRef = useRef(network)
   const rodeRef = useRef<string | undefined>(undefined)
@@ -195,9 +210,11 @@ export function NetworkMap({ focus, highlightLine, incidentStations, lost, metri
       attributionControl: false,
       bounds: initialNetwork.bounds,
       container,
+      maxBounds: panLimits(initialNetwork.bounds),
       maxPitch: 70,
       maxZoom: 17,
       minZoom: 9,
+      renderWorldCopies: false,
       style: basemap as StyleSpecification,
     })
     mapRef.current = map
@@ -210,7 +227,13 @@ export function NetworkMap({ focus, highlightLine, incidentStations, lost, metri
       const feature = hit(event.point)
       onSelectRef.current(feature ? { id: String(feature.properties.id), kind: feature.properties.kind } : null)
     })
-    map.on('mousemove', (event) => { map.getCanvas().style.cursor = hit(event.point) ? 'pointer' : '' })
+    map.on('mousemove', (event) => {
+      const feature = hit(event.point)
+      map.getCanvas().style.cursor = feature ? 'pointer' : ''
+      setHover(feature ? { target: { id: String(feature.properties.id), kind: feature.properties.kind }, x: event.point.x, y: event.point.y } : null)
+    })
+    map.on('mouseout', () => setHover(null))
+    map.on('movestart', () => setHover(null))
     // 'style.load', not 'load': the network needs the style, not every basemap tile.
     map.once('style.load', () => {
       addLayers(map, initialNetwork)
@@ -281,11 +304,21 @@ export function NetworkMap({ focus, highlightLine, incidentStations, lost, metri
       : EMPTY)
   }, [loaded, selectedStation])
 
-  // Frame the whole network on first load and whenever the view changes.
+  // Frame the whole network on first load and whenever the view changes. A new
+  // view can move the divider, so wait for the slide to finish before framing.
   useEffect(() => {
     const map = mapRef.current
-    if (loaded && map && !rodeRef.current) overview(map, network, mode)
-  }, [loaded, mode, network])
+    if (!loaded || !map || rodeRef.current) return undefined
+    const timer = window.setTimeout(() => overview(map, network, mode), 300)
+    return () => window.clearTimeout(timer)
+  }, [frame, loaded, mode, network])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!loaded || !map) return
+    if (scrollZoom) map.scrollZoom.enable()
+    else map.scrollZoom.disable()
+  }, [loaded, scrollZoom])
 
   useEffect(() => {
     const map = mapRef.current
@@ -320,5 +353,17 @@ export function NetworkMap({ focus, highlightLine, incidentStations, lost, metri
     }
   }, [loaded, mode, network, rideTripId, ridden])
 
-  return <section aria-label="Map of the MBTA subway" className="metro-map"><div className="metro-map-canvas" data-state={loaded ? 'ready' : 'loading'} ref={containerRef} /></section>
+  const tip = hover && describe ? describe(hover.target) : null
+  return (
+    <section aria-label="Map of the MBTA subway" className="metro-map">
+      <div className="metro-map-canvas" data-state={loaded ? 'ready' : 'loading'} ref={containerRef} />
+      {tip && hover ? (
+        <div className="map-tooltip" role="status" style={{
+          // Keep the card inside the map: flip it to the pointer's left near the right edge.
+          left: hover.x + 260 > (containerRef.current?.clientWidth ?? Infinity) ? hover.x - 254 : hover.x + 14,
+          top: hover.y + 14,
+        }}>{tip}</div>
+      ) : null}
+    </section>
+  )
 }

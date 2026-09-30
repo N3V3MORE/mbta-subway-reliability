@@ -34,12 +34,20 @@ function StationRanking({ metric, network, onMetric, onSelect }: {
   const clusters = Object.entries(RELIABILITY_COLORS).map(([name, color]) => ({
     color, count: network.stations.filter((s) => s.reliability === name).length, name,
   }))
+  // Why the less reliable stations are less reliable: say where they are.
+  const less = network.stations.filter((s) => s.reliability === 'less reliable')
+  const kenmore = network.stations.find((s) => s.name === 'Kenmore')?.coords[0] ?? -71.095
+  const westernBranches = less.filter((s) => s.coords[0] < kenmore && s.lines.some((id) => ['Green-B', 'Green-C', 'Green-D'].includes(id))).length
 
   return (
     <>
       <header className="panel-head">
         <h1>Network</h1>
-        <p>{network.stations.length} stations, {formatDate(network.window[0], 'short')} to {formatDate(network.window[1], 'short')}. Each column rises with the measure you pick.</p>
+        <p>
+          Each column is one of the {network.stations.length} stations, {formatDate(network.window[0], 'short')} to{' '}
+          {formatDate(network.window[1], 'short')}. Pick what the height shows; the colour says whether riders there usually wait
+          longer than planned. Hover a station for its numbers, click it for everything else.
+        </p>
       </header>
 
       <section className="panel-section">
@@ -54,6 +62,12 @@ function StationRanking({ metric, network, onMetric, onSelect }: {
             <li key={cluster.name}><i style={{ background: cluster.color }} />{clusterLabel(cluster.name)}<span>{cluster.count} stations</span></li>
           ))}
         </ul>
+        {less.length ? (
+          <p className="hint">
+            Why less reliable: {westernBranches} of the {less.length} are on the Green Line’s B, C and D branches west of Kenmore, where
+            the B and C run in the street with traffic and the gaps between trains grow uneven. Most of the rest are at the ends of lines.
+          </p>
+        ) : null}
       </section>
 
       <section className="panel-section">

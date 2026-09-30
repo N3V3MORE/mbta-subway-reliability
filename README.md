@@ -95,7 +95,10 @@ as late as it is", is off by 49.
 
 **And all of it in one app, on a 3D map.** [`map/`](map/README.md) is the
 project's interface: the network in 3D, with a panel docked beside it for each
-view. **Network** stands each station up as a column: its height is the late
+view, sized to what the view is for. It opens on the **Story**: the project's
+findings as short chapters in plain words, each with one number and one chart,
+while the map beside it changes to show each chapter as you scroll (the stations,
+a day's trains, where time is lost). **Network** stands each station up as a column: its height is the late
 share, bad-day delay or daily entries, and its colour is its reliability cluster.
 **Replay** plays back real service days train by train (a spring weekday, the 23
 February storm and a holdout day), each train coloured and raised by its
@@ -109,6 +112,8 @@ per train or per day, with what winter makes worse. **Results** holds the charts
 above and more, for spring, winter and the holdout; hovering a line in a chart
 brings it forward on the map. **Stations** is every station in a sortable table.
 Run it with `make map` (needs Node.js).
+
+![The Story: the findings chapter by chapter, the map following along](map/docs/story.png)
 
 ![Park Street in the Network view](map/docs/network-park-street.png)
 

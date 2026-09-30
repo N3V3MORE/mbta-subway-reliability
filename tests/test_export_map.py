@@ -180,7 +180,11 @@ def test_results_period_reads_what_the_run_saved(tmp_path):
                                    "ownTrain": 16.8, "model": 16.2}]
     assert period["byLine"][0]["line"] == "Red"
     # Stages that did not run leave their keys out rather than failing the export.
-    assert "warning" not in period and "bands" not in period
+    assert "warning" not in period and "bands" not in period and "crossTrack" not in period
+
+    (tmp_path / "cluster_metrics.json").write_text(json.dumps({"cross_track": {
+        "chi2_p_value": 0.37649, "mean_lateness_by_demand_cluster": {"morning-peaked": 44.4}}}), encoding="utf-8")
+    assert export_map.build_period(tmp_path)["crossTrack"] == {"pValue": 0.376, "lateByDemand": {"morning-peaked": 44.4}}
 
 
 def test_no_alerts_archive_means_no_incidents():

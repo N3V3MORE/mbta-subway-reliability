@@ -3,12 +3,20 @@ import { formatDate } from '../data/format'
 import type { PreparedNetwork } from '../data/network'
 import type { Results } from '../types'
 
-const SOURCES = [
-  ['MBTA performance archive (LAMP)', 'Every observed stop with its scheduled time: the delay label.'],
-  ['MBTA V3 API', 'Station locations, track shapes and line colours; the live collector.'],
-  ['Faregate entries', 'Entries per station per half-hour: the demand signal.'],
-  ['Open-Meteo', 'Hourly Boston weather.'],
-  ['MBTA alerts archive', 'Service alerts with their cause, effect and timing.'],
+/** Each source, what it gave the project, and its licence as the provider states it. */
+const SOURCES: { href: string; licence: string; name: string; what: string }[] = [
+  { href: 'https://www.mass.gov/massdot-developers-data-sources', licence: 'MassDOT Developers License Agreement',
+    name: 'MBTA performance archive (LAMP)', what: 'Every observed stop with its scheduled time: the delay label.' },
+  { href: 'https://www.mass.gov/massdot-developers-data-sources', licence: 'MassDOT Developers License Agreement',
+    name: 'MBTA V3 API', what: 'Station locations, track shapes and line colours; the live collector.' },
+  { href: 'https://www.mass.gov/massdot-developers-data-sources', licence: 'MassDOT Developers License Agreement',
+    name: 'MBTA alerts archive', what: 'Service alerts with their cause, effect and timing.' },
+  { href: 'https://creativecommons.org/publicdomain/zero/1.0/', licence: 'CC0 1.0',
+    name: 'MBTA gated station entries', what: 'Entries per station per half-hour: the demand signal.' },
+  { href: 'https://open-meteo.com/', licence: 'CC BY 4.0',
+    name: 'Weather data by Open-Meteo.com', what: 'Hourly Boston weather, aggregated to the hour of each prediction.' },
+  { href: 'https://www.openstreetmap.org/copyright', licence: 'ODbL',
+    name: 'Base map: OpenFreeMap, © OpenMapTiles, © OpenStreetMap contributors', what: 'Streets, water and place names under the network.' },
 ]
 
 export function AboutPanel({ network, results }: { network: PreparedNetwork; results: Results }) {
@@ -41,9 +49,18 @@ export function AboutPanel({ network, results }: { network: PreparedNetwork; res
       </section>
 
       <section className="panel-section">
-        <h2>Sources</h2>
+        <h2>Data and licences</h2>
+        <p className="hint">
+          Data provided by MassDOT and the MBTA, used under the MassDOT Developers License Agreement; it remains theirs and comes
+          as is. This project is not affiliated with or endorsed by the MBTA or MassDOT.
+        </p>
         <dl className="pair-list is-stacked">
-          {SOURCES.map(([name, what]) => <div key={name}><dt>{name}</dt><dd>{what}</dd></div>)}
+          {SOURCES.map((source) => (
+            <div key={source.name}>
+              <dt><a href={source.href} rel="noreferrer" target="_blank">{source.name}</a></dt>
+              <dd>{source.what} <span className="licence">{source.licence}</span></dd>
+            </div>
+          ))}
         </dl>
       </section>
 

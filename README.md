@@ -322,6 +322,43 @@ used, for two things it alone can do: station coordinates, and the live collecto
 | Station coordinates | 125 stations from the V3 API |
 | **Live capture** | **5 polls: 3,932 predictions, 281 vehicle positions, 50 alerts** |
 
+### Data licences and attribution
+
+This project is not affiliated with or endorsed by the MBTA or the Massachusetts
+Department of Transportation (MassDOT). It uses no MBTA or MassDOT logos.
+
+| Data | Provider | Licence | Where it is used |
+|---|---|---|---|
+| Subway performance records (LAMP), the alerts archive, the V3 API (stations, track shapes, line colours, live predictions), and the MBTA's prediction-accuracy file | MassDOT / MBTA | [MassDOT Developers License Agreement](https://www.mass.gov/massdot-developers-data-sources) (13 November 2009) | Everything: cleaning, models, clustering, the app |
+| Gated station entries | MBTA ([open data portal](https://mbta-massdot.opendata.arcgis.com/)) | CC0 1.0 (public domain dedication), as stated on the dataset | Demand features and demand clusters |
+| Hourly weather | [Open-Meteo.com](https://open-meteo.com/) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Weather features; winter storm days |
+| Map tiles and base-map data | [OpenFreeMap](https://openfreemap.org/), © [OpenMapTiles](https://openmaptiles.org/), data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors | ODbL (OpenStreetMap data) | The app's base map; attributed on the map |
+
+What the MassDOT agreement asks, and how this project meets it:
+
+- It grants a non-exclusive, limited and revocable right to use, reproduce and
+  redistribute the data, and to combine it with other data. MassDOT can change or
+  revoke the terms at any time.
+- MassDOT must be acknowledged as the provider of the data. All MBTA data in this
+  project is provided by MassDOT and the MBTA, and remains theirs.
+- A user may not claim ownership of the data, present themselves as MassDOT or its
+  partner, use its logos or trademarks, misrepresent the data, or offer guarantees
+  about it. The data comes "as is". This project's analysis of its quality (§5) is
+  a description, not a guarantee.
+
+The data files committed here (`map/public/data/`, the tables in `reports/`) are
+derived from MBTA data and stay under the MassDOT agreement. Any licence chosen for
+this repository's code does not extend to them.
+
+Weather: "Weather data by [Open-Meteo.com](https://open-meteo.com/)", under
+CC BY 4.0. It was aggregated to hourly Boston values and joined to train arrivals.
+Open-Meteo's historical archive draws on reanalysis that includes the Copernicus
+Climate Change Service's ERA5, which Open-Meteo credits on its
+[licence page](https://open-meteo.com/en/licence).
+
+TransitMatters' public data was queried once, for an independent check of this
+project's timestamps (§5). None of it is redistributed here.
+
 ---
 
 ## 4. Repository structure

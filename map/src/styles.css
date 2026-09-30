@@ -456,3 +456,7 @@ td { font-variant-numeric: tabular-nums; }
 .map-tooltip b { color: var(--text); font-size: 13.5px; }
 .map-tooltip span { color: var(--text-2); }
 .map-tooltip span:last-child:not(:first-of-type) { color: var(--muted); }
+.pair-list dt a { color: var(--text); text-decoration-color: var(--rule); text-underline-offset: 3px; }
+.pair-list dt a:hover { text-decoration-color: var(--accent); }
+.licence { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+.licence::before { content: '· '; }

@@ -102,7 +102,7 @@ Targets:
     'schedule-live' {
         # Runs as the current user, only while logged on: no password is stored.
         # A run missed while the computer was off or asleep starts when it wakes.
-        $log = Join-Path $repoRoot 'dataaw3\collector.log'
+        $log = Join-Path $repoRoot 'data\raw\v3\collector.log'
         New-Item -ItemType Directory -Force (Split-Path $log) | Out-Null
         $command = "& '$PSCommandPath' live-day *>> '$log'"
         $action = New-ScheduledTaskAction -Execute 'powershell.exe' -WorkingDirectory $repoRoot `

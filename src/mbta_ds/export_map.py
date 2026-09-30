@@ -246,7 +246,11 @@ def build_replay(day: pd.DataFrame, predictions: pd.DataFrame, station_index: di
     Times are seconds after the start of the service day, the same anchor the
     timetable uses, so times after midnight run past 86,400 instead of wrapping.
     """
-    day = day[day["parent_station"].isin(station_index)].sort_values(["trip_id", "stop_sequence"])
+    # Scheduled time, not stop_sequence, is the reliable stop order (clean.py,
+    # finding 5): ordered by stop_sequence, a Heath Street trip starts at its last
+    # stop and every later record is dropped below as going back in time.
+    day = (day[day["parent_station"].isin(station_index)]
+           .sort_values(["trip_id", "scheduled_arrival_time", "stop_sequence"]))
     # Stop times must strictly increase along a trip. A record that goes back in
     # time (or repeats a station) cannot be drawn as motion, so it is dropped.
     before = day.groupby("trip_id")["stop_timestamp"].cummax().groupby(day["trip_id"]).shift()

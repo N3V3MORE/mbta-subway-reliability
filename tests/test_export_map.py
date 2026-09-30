@@ -87,6 +87,26 @@ def test_replay_keeps_observed_order_and_joins_predictions():
     assert replay["summary"]["maeModel"] == pytest.approx(4.8)
 
 
+def test_replay_orders_stops_by_schedule_not_stop_sequence():
+    # Green-E into Heath Street: the final stop is labelled stop_sequence 1.
+    patterns = [{"line": "Red", "stations": ["pA", "pB", "pC", "pD"]}]
+    day = pd.DataFrame(_trip_rows("t1", "Red-A", ["pA", "pB", "pC", "pD"]))
+    day["stop_sequence"] = [10, 20, 30, 1]
+    day["scheduled_arrival_time"] = 36_000.0 + 120 * day.index
+    day["scheduled_epoch"] = 1_000_000.0 + day["scheduled_arrival_time"]
+    day["move_timestamp"] = day["stop_timestamp"] - 30
+    day["direction_destination"] = "Heath Street"
+    day[["delay_seconds", "lateness_seconds"]] = 0.0
+    day["late"] = day["is_origin"] = day["time_inconsistent"] = False
+    predictions = pd.DataFrame({"trip_id": ["t1"], "stop_id": ["pB-t1"], "predicted_delay": [0.0],
+                                "persistence_delay": [0.0]})
+
+    replay = export_map.build_replay(day, predictions, {s: i for i, s in enumerate(COORDS.index)}, patterns)
+
+    trip, = replay["trips"]
+    assert trip["s"] == [0, 1, 2, 3]
+
+
 def test_incidents_are_the_days_service_alerts_with_start_end_and_stations():
     rows = [
         # Raised 07:10, updated, then closed 07:34: one incident.

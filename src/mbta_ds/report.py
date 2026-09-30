@@ -26,6 +26,7 @@ OUT_PATH = config.REPORTS_DIR / "report.html"
 #: Internal model key -> the name a reader sees in the report and its tables.
 MODEL_LABELS = {
     "hist_gradient_boosting_change": "Gradient boosting on the change since the last stop",
+    "hist_gradient_boosting_run_time": "Gradient boosting correcting the running-time lookup (candidate)",
     "hist_gradient_boosting_mae": "Gradient boosting (absolute-error loss)",
     "hist_gradient_boosting": "Gradient boosting (squared-error loss)",
     "decision_tree": "Decision tree",

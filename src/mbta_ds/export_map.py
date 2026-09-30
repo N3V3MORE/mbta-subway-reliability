@@ -488,7 +488,24 @@ def build_period(processed: Path) -> dict:
             out[key] = _records(pd.read_csv(processed / name), columns)
     if (processed / "trips_clean.parquet").exists():
         out.update(_arrival_bands(processed))
+    if (processed / "segments.json").exists():
+        out["lost"] = _time_lost(processed)
     return out
+
+
+def _time_lost(processed: Path) -> dict:
+    """Where the run's trains lost time (``segments`` stage): the summary and every place."""
+    summary = json.loads((processed / "segments.json").read_text(encoding="utf-8"))
+    common = {"line": "line", "direction_id": "dir", "trains": "trains", "reference_seconds": "good",
+              "median_lost": "median", "p90_lost": "p90", "mean_lost": "mean", "lost_minutes_per_day": "perDay"}
+    stretches = pd.read_parquet(processed / "segments_stretches.parquet")
+    platforms = pd.read_parquet(processed / "segments_platforms.parquet")
+    return {
+        "summary": summary,
+        "stretches": _records(stretches, {**common, "from_station": "from", "to_station": "to",
+                                          "into_terminal": "terminal"}, digits=1),
+        "platforms": _records(platforms, {**common, "station": "station"}, digits=1),
+    }
 
 
 def build_results(periods=PERIODS) -> dict:

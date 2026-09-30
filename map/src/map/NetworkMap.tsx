@@ -9,20 +9,29 @@ import { basemap } from './basemap'
 import { columnRing } from '../data/geometry'
 import { isInterchange, METRICS, type MetricId, type PreparedNetwork, RELIABILITY_COLORS, UNCLUSTERED_COLOR } from '../data/network'
 import { bandOf, DELAY_BANDS, type Vehicle } from '../data/replay'
+import type { LonLat } from '../types'
 
 // MapLibre computes its worker's URL at run time, which bundlers cannot see. Let
 // Vite bundle the worker (with the chunk it imports) and hand MapLibre the URL.
 setWorkerUrl(workerUrl)
 
-export type Mode = 'network' | 'replay'
-export type Selection = { id: string; kind: 'station' | 'trip' }
+export type Mode = 'network' | 'replay' | 'lost'
+export type Selection = { id: string; kind: 'station' | 'trip' | 'place' }
+
+/** The "time lost" view's places, each with its share `t` (0-1) of the worst one. */
+export type LostLayer = {
+  platforms: { coords: LonLat; id: string; t: number }[]
+  stretches: { coords: LonLat[]; id: string; t: number }[]
+}
 
 type Props = {
-  focus?: { stationId: string }
+  /** Fly here: a station, or any point (a stretch of track's middle). */
+  focus?: { center?: LonLat; stationId?: string }
   /** A route to bring forward, dimming the rest (from hovering a results chart). */
   highlightLine?: string
   /** Stations named by an MBTA alert in effect at the replay's time. */
   incidentStations: string[]
+  lost?: LostLayer
   metric: MetricId
   mode: Mode
   network: PreparedNetwork
@@ -35,8 +44,11 @@ type Props = {
 const COLUMN_MAX_METRES = 1_600
 /** Stations under an MBTA alert: distinct from the lateness ramp and the selection amber. */
 const INCIDENT_COLOR = '#ff7a59'
-const PITCH: Record<Mode, number> = { network: 52, replay: 40 }
-const CLICKABLE = ['stations', 'interchanges', 'station-columns', 'trains', 'train-columns']
+const PITCH: Record<Mode, number> = { network: 52, replay: 40, lost: 48 }
+const CLICKABLE = ['stations', 'interchanges', 'station-columns', 'trains', 'train-columns', 'lost-stretches', 'lost-platforms']
+/** Time lost moving: one blue ramp, dim to bright (validated against the basemap as the panel's pair). */
+const LOST_MOVING = ['interpolate', ['linear'], ['get', 't'], 0, '#1f3656', 0.25, '#2a78d6', 0.6, '#6da7ec', 1, '#cde2fb'] as ExpressionSpecification
+const LOST_STANDING = '#c98500'
 const collection = (features: Feature[]): FeatureCollection => ({ features, type: 'FeatureCollection' })
 const EMPTY = collection([])
 const width = (low: number, high: number): ExpressionSpecification => ['interpolate', ['linear'], ['zoom'], 10, low, 14, high]
@@ -98,7 +110,9 @@ function addLayers(map: MapLibreMap, network: PreparedNetwork) {
     }))),
     type: 'geojson',
   })
-  for (const id of ['station-columns', 'trains', 'train-columns', 'selection', 'incidents']) map.addSource(id, { data: EMPTY, type: 'geojson' })
+  for (const id of ['station-columns', 'trains', 'train-columns', 'selection', 'incidents', 'lost-stretches', 'lost-platforms']) {
+    map.addSource(id, { data: EMPTY, type: 'geojson' })
+  }
 
   const interchange: ExpressionSpecification = ['==', ['get', 'interchange'], true]
   const layers: Parameters<MapLibreMap['addLayer']>[0][] = [
@@ -113,10 +127,19 @@ function addLayers(map: MapLibreMap, network: PreparedNetwork) {
     },
     { id: 'line-casing', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#100f0d', 'line-width': width(5, 10) }, source: 'lines', type: 'line' },
     { id: 'line-core', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': width(2.6, 6) }, source: 'lines', type: 'line' },
+    {
+      filter: ['==', ['get', 'selected'], true], id: 'lost-stretch-selected', layout: { 'line-cap': 'round', 'line-join': 'round' }, source: 'lost-stretches', type: 'line',
+      paint: { 'line-color': '#f0b64e', 'line-width': ['interpolate', ['linear'], ['zoom'], 10, ['+', 6, ['*', ['get', 't'], 6]], 14, ['+', 10, ['*', ['get', 't'], 12]]] },
+    },
+    {
+      id: 'lost-stretches', layout: { 'line-cap': 'round', 'line-join': 'round' }, source: 'lost-stretches', type: 'line',
+      paint: { 'line-color': LOST_MOVING, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, ['+', 2, ['*', ['get', 't'], 6]], 14, ['+', 4, ['*', ['get', 't'], 12]]] },
+    },
     { filter: ['!', interchange], id: 'stations', paint: { 'circle-color': '#f5eee3', 'circle-radius': width(2, 5), 'circle-stroke-color': '#171613', 'circle-stroke-width': 1 }, source: 'stations', type: 'circle' },
     { filter: interchange, id: 'interchanges', paint: { 'circle-color': '#f5eee3', 'circle-radius': width(3.2, 8), 'circle-stroke-color': '#171613', 'circle-stroke-width': 2.4 }, source: 'stations', type: 'circle' },
     { id: 'incident-stations', paint: { 'circle-color': 'rgba(255, 122, 89, 0.18)', 'circle-radius': width(7, 16), 'circle-stroke-color': INCIDENT_COLOR, 'circle-stroke-width': width(1.5, 2.5) }, source: 'incidents', type: 'circle' },
     { id: 'station-columns', paint: { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-opacity': 0.86 }, source: 'station-columns', type: 'fill-extrusion' },
+    { id: 'lost-platforms', paint: { 'fill-extrusion-color': LOST_STANDING, 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-opacity': 0.88 }, source: 'lost-platforms', type: 'fill-extrusion' },
     { id: 'train-columns', paint: { 'fill-extrusion-color': ['get', 'band'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-opacity': 0.8 }, source: 'train-columns', type: 'fill-extrusion' },
     { id: 'trains', paint: { 'circle-color': ['get', 'band'], 'circle-radius': width(3.2, 6.5), 'circle-stroke-color': ['get', 'line'], 'circle-stroke-width': width(1.6, 3) }, source: 'trains', type: 'circle' },
     { filter: ['==', ['get', 'selected'], true], id: 'train-selection', paint: { 'circle-color': 'rgba(0,0,0,0)', 'circle-radius': width(8, 13), 'circle-stroke-color': '#f0b64e', 'circle-stroke-width': 2 }, source: 'trains', type: 'circle' },
@@ -156,7 +179,7 @@ function overview(map: MapLibreMap, network: PreparedNetwork, mode: Mode) {
 
 const source = (map: MapLibreMap, id: string) => map.getSource(id) as GeoJSONSource
 
-export function NetworkMap({ focus, highlightLine, incidentStations, metric, mode, network, onSelect, rideTripId, selection, vehicles }: Props) {
+export function NetworkMap({ focus, highlightLine, incidentStations, lost, metric, mode, network, onSelect, rideTripId, selection, vehicles }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const [loaded, setLoaded] = useState(false)
@@ -209,13 +232,26 @@ export function NetworkMap({ focus, highlightLine, incidentStations, metric, mod
     const map = mapRef.current
     if (!loaded || !map) return
     source(map, 'station-columns').setData(mode === 'network' ? stationColumns(network, metric) : EMPTY)
-    // In a replay the trains are the subject; recede the stations so an on-time
-    // (near-white) train is not mistaken for one.
+    // In a replay the trains are the subject, and in "time lost" the track is:
+    // recede the stations so neither is mistaken for one.
     for (const id of ['stations', 'interchanges']) {
-      map.setPaintProperty(id, 'circle-opacity', mode === 'replay' ? 0.35 : 1)
-      map.setPaintProperty(id, 'circle-stroke-opacity', mode === 'replay' ? 0.35 : 1)
+      map.setPaintProperty(id, 'circle-opacity', mode === 'network' ? 1 : 0.35)
+      map.setPaintProperty(id, 'circle-stroke-opacity', mode === 'network' ? 1 : 0.35)
     }
   }, [loaded, metric, mode, network])
+
+  const selectedPlace = selection?.kind === 'place' ? selection.id : undefined
+  useEffect(() => {
+    const map = mapRef.current
+    if (!loaded || !map) return
+    const show = mode === 'lost' && lost
+    source(map, 'lost-stretches').setData(show ? collection(lost.stretches.map(({ coords, id, t }) => ({
+      geometry: { coordinates: coords, type: 'LineString' }, properties: { id, kind: 'place', selected: id === selectedPlace, t }, type: 'Feature',
+    }))) : EMPTY)
+    source(map, 'lost-platforms').setData(show ? collection(lost.platforms.map(({ coords, id, t }) => ({
+      geometry: { coordinates: [columnRing(coords, 110)], type: 'Polygon' }, properties: { height: 15 + t * COLUMN_MAX_METRES, id, kind: 'place' }, type: 'Feature',
+    }))) : EMPTY)
+  }, [loaded, lost, mode, selectedPlace])
 
   const selectedTripId = selection?.kind === 'trip' ? selection.id : undefined
   useEffect(() => {
@@ -253,16 +289,18 @@ export function NetworkMap({ focus, highlightLine, incidentStations, metric, mod
 
   useEffect(() => {
     const map = mapRef.current
-    const station = focus && network.stationById.get(focus.stationId)
-    if (!loaded || !map || !station) return
-    map.easeTo({ center: station.coords, duration: reducedMotion() ? 0 : 700, zoom: Math.max(13.5, map.getZoom()) })
+    const center = focus?.center ?? (focus?.stationId ? network.stationById.get(focus.stationId)?.coords : undefined)
+    if (!loaded || !map || !center) return
+    map.easeTo({ center, duration: reducedMotion() ? 0 : 700, zoom: Math.max(13.5, map.getZoom()) })
   }, [focus, loaded, network])
 
   useEffect(() => {
     const map = mapRef.current
     if (!loaded || !map || rideTripId) return
-    map.setPaintProperty('line-core', 'line-opacity', highlightLine ? ['case', ['==', ['get', 'line'], highlightLine], 1, 0.18] : 1)
-  }, [highlightLine, loaded, rideTripId])
+    // In "time lost" the coloured track replaces the line colours.
+    map.setPaintProperty('line-core', 'line-opacity', mode === 'lost' ? 0.12
+      : highlightLine ? ['case', ['==', ['get', 'line'], highlightLine], 1, 0.18] : 1)
+  }, [highlightLine, loaded, mode, rideTripId])
 
   // Ride: fly down to the train once, then keep it centred as it moves.
   const ridden = rideTripId ? vehicles.find((vehicle) => vehicle.trip.id === rideTripId) : undefined

@@ -37,7 +37,10 @@ $repoRoot = $PSScriptRoot
 Set-Location $repoRoot
 $env:PYTHONPATH = Join-Path $repoRoot 'src'
 if ($Run) { $env:MBTA_RUN = $Run }
-$python = 'python'
+# The project's virtual environment when there is one: a scheduled task starts
+# without it activated, and the first `python` on PATH may lack the pinned packages.
+$venvPython = Join-Path $repoRoot '.venv\Scripts\python.exe'
+$python = if (Test-Path $venvPython) { $venvPython } else { 'python' }
 $liveTask = 'MBTA live collector'
 
 function Invoke-Step {
@@ -134,6 +137,7 @@ Targets:
     }
     'report' {
         Invoke-Step 'supporting analyses' @('-m', 'mbta_ds.cli', 'extras')
+        Invoke-Step 'where the T loses time' @('-m', 'mbta_ds.cli', 'segments')
         Invoke-Step 'writing the report' @('-m', 'mbta_ds.cli', 'report')
         Invoke-Step 'writing the plain-language story' @('-m', 'mbta_ds.cli', 'story')
     }

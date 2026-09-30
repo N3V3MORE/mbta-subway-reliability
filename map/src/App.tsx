@@ -3,19 +3,22 @@ import { StationSearch } from './components/StationSearch'
 import { Timeline } from './components/Timeline'
 import { loadNetwork, loadReplay, loadResults, type MetricId, type PreparedNetwork } from './data/network'
 import { activeIncidents, type PreparedReplay, vehiclesAt } from './data/replay'
-import type { Mode, Selection } from './map/NetworkMap'
+import { type LostMetric, lostPlaces, stretchGeometry, valueOf } from './data/lost'
+import type { LostLayer, Mode, Selection } from './map/NetworkMap'
 import { AboutPanel } from './panels/AboutPanel'
+import { LostPanel } from './panels/LostPanel'
 import { NetworkPanel } from './panels/NetworkPanel'
 import { ReplayPanel } from './panels/ReplayPanel'
 import { ResultsPanel } from './panels/ResultsPanel'
 import { StationsPanel } from './panels/StationsPanel'
-import type { Results } from './types'
+import type { LonLat, Results } from './types'
 
 const NetworkMap = lazy(() => import('./map/NetworkMap').then((module) => ({ default: module.NetworkMap })))
 
 const PAGES = [
   { id: 'network', label: 'Network' },
   { id: 'replay', label: 'Replay' },
+  { id: 'lost', label: 'Time lost' },
   { id: 'results', label: 'Results' },
   { id: 'stations', label: 'Stations' },
   { id: 'about', label: 'About' },
@@ -53,7 +56,8 @@ function Workspace({ network, results }: { network: PreparedNetwork; results: Re
   const [metric, setMetric] = useState<MetricId>('late')
   const [periodId, setPeriodId] = useState(results.periods[0]?.id ?? 'spring')
   const [highlightLine, setHighlightLine] = useState<string>()
-  const [focus, setFocus] = useState<{ stationId: string }>()
+  const [focus, setFocus] = useState<{ center?: LonLat; stationId?: string }>()
+  const [lostMetric, setLostMetric] = useState<LostMetric>('train')
 
   // Replay state lives here so leaving the replay and coming back keeps your place.
   const dayIndex = Math.max(0, network.replays.findIndex((day) => day.date === (page === 'replay' ? param : undefined)))
@@ -68,7 +72,35 @@ function Workspace({ network, results }: { network: PreparedNetwork; results: Re
   const [lastDay, setLastDay] = useState(day?.date)
   useEffect(() => { if (page === 'replay' && day) setLastDay(day.date) }, [day, page])
 
-  const mode: Mode = page === 'replay' ? 'replay' : 'network'
+  const mode: Mode = page === 'replay' ? 'replay' : page === 'lost' ? 'lost' : 'network'
+
+  // "Time lost": every place of the chosen period, scaled to the worst one on the chosen measure.
+  const geometry = useMemo(() => stretchGeometry(network.patterns), [network])
+  const lostPeriod = results.periods.find((p) => p.id === periodId && p.lost) ?? results.periods.find((p) => p.lost)
+  const places = useMemo(() => lostPlaces(lostPeriod), [lostPeriod])
+  const lostLayer = useMemo<LostLayer | undefined>(() => {
+    if (!places.length) return undefined
+    const scale = (kind: string) => Math.max(...places.filter((p) => p.kind === kind).map((p) => valueOf(p, lostMetric)), 1e-9)
+    const [maxStretch, maxPlatform] = [scale('stretch'), scale('platform')]
+    return {
+      platforms: places.flatMap((p) => {
+        const station = network.stationById.get(p.stations[0])
+        return p.kind === 'platform' && station ? [{ coords: station.coords, id: p.id, t: valueOf(p, lostMetric) / maxPlatform }] : []
+      }),
+      stretches: places.flatMap((p) => {
+        const coords = geometry.get(p.id)
+        return p.kind === 'stretch' && coords ? [{ coords, id: p.id, t: valueOf(p, lostMetric) / maxStretch }] : []
+      }),
+    }
+  }, [geometry, lostMetric, network, places])
+  const placeId = page === 'lost' ? param : undefined
+  const selectPlace = (id: string | undefined, fly = true) => {
+    go('lost', id)
+    const place = places.find((p) => p.id === id)
+    if (!place || !fly) return
+    const coords = place.kind === 'stretch' ? geometry.get(place.id) : undefined
+    setFocus({ center: coords ? coords[Math.floor(coords.length / 2)] : undefined, stationId: coords ? undefined : place.stations[0] })
+  }
   const stationId = page === 'network' || page === 'stations' ? param : undefined
   const station = stationId ? network.stationById.get(stationId) : undefined
 
@@ -125,7 +157,9 @@ function Workspace({ network, results }: { network: PreparedNetwork; results: Re
 
   const selection: Selection | null = mode === 'replay'
     ? (tripId ? { id: tripId, kind: 'trip' } : null)
-    : (stationId ? { id: stationId, kind: 'station' } : null)
+    : mode === 'lost'
+      ? (placeId ? { id: placeId, kind: 'place' } : null)
+      : (stationId ? { id: stationId, kind: 'station' } : null)
 
   let panel: React.ReactNode
   if (page === 'network') panel = <NetworkPanel metric={metric} network={network} onMetric={setMetric} onSelect={(id) => selectStation(id)} selected={station} />
@@ -134,6 +168,13 @@ function Workspace({ network, results }: { network: PreparedNetwork; results: Re
       <ReplayPanel
         dayIndex={dayIndex} network={network} onDay={changeDay} onRide={() => setRideTripId((current) => (current ? undefined : tripId))}
         onSeconds={setSeconds} onTrip={selectTrip} replay={replay} riding={!!rideTripId && rideTripId === tripId} seconds={seconds} trip={trip}
+      />
+    )
+  } else if (page === 'lost') {
+    panel = (
+      <LostPanel
+        metric={lostMetric} network={network} onMetric={setLostMetric} onPeriod={setPeriodId} onSelect={(id) => selectPlace(id)}
+        periodId={lostPeriod?.id ?? periodId} results={results} selectedId={placeId}
       />
     )
   } else if (page === 'results') panel = <ResultsPanel network={network} onHighlightLine={setHighlightLine} onPeriod={setPeriodId} periodId={periodId} results={results} />
@@ -170,11 +211,13 @@ function Workspace({ network, results }: { network: PreparedNetwork; results: Re
               focus={focus}
               highlightLine={page === 'results' ? highlightLine : undefined}
               incidentStations={incidentStations}
+              lost={lostLayer}
               metric={metric}
               mode={mode}
               network={network}
               onSelect={(next) => {
                 if (mode === 'replay') selectTrip(next?.kind === 'trip' ? next.id : undefined)
+                else if (mode === 'lost') selectPlace(next?.kind === 'place' ? next.id : undefined, false)
                 else selectStation(next?.kind === 'station' ? next.id : undefined, false)
               }}
               rideTripId={rideTripId}

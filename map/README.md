@@ -19,6 +19,11 @@ The map is always on screen; a panel docked beside it changes with the view:
   where they were raised. Select a train to follow it stop by stop: when it
   arrived, how far off the timetable it was, and the model's forecast for each
   stop against what happened. **Ride along** follows it at street level.
+* **Time lost** shows where trains lose time against each place's own good runs:
+  each stretch of track coloured by the time lost moving, a column at each station
+  for the time lost standing at its platforms, per train or per day. The panel
+  ranks the places, splits each line's loss into moving and standing, and for
+  winter and the holdout lists what got worse than in spring.
 * **Results** compares the model with the rules of thumb across all three
   periods, then, for the period you pick: error one to ten stops ahead,
   fortnight by fortnight, how late each line runs and when, and what the model
@@ -59,7 +64,7 @@ first and then starts the app.
 | --- | --- |
 | `network.json` | lines and colours, one track geometry per branch (MBTA's canonical V3 shapes), each station's reliability and demand results |
 | `replay-<date>.json` | every observed trip that day: station, arrival, time at the stop, lateness for riders, delay against the timetable, and the model's prediction of that delay; plus the MBTA's alerts that day |
-| `results.json` | each built period's results (spring, winter, the July–September holdout): every method's error, error by horizon and by fortnight, lateness by line and hour, early warning, cleaning and data checks |
+| `results.json` | each built period's results (spring, winter, the July–September holdout): every method's error, error by horizon and by fortnight, lateness by line and hour, early warning, time lost per stretch and platform, cleaning and data checks |
 
 Replay days are chosen from each run's test period, so every forecast shown was
 made by a model that never saw that day. Choose others with

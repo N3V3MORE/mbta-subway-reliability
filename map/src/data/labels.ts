@@ -24,5 +24,16 @@ export function clusterLabel(name: string | null) {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
+/** Where a line's trains head in each GTFS direction (0, 1). */
+const DIRECTIONS: Record<string, [string, string]> = {
+  Blue: ['toward Bowdoin', 'toward Wonderland'],
+  Green: ['westbound', 'eastbound'],
+  Mattapan: ['toward Mattapan', 'toward Ashmont'],
+  Orange: ['toward Forest Hills', 'toward Oak Grove'],
+  Red: ['toward Ashmont/Braintree', 'toward Alewife'],
+}
+
+export const directionName = (line: string, direction: number) => DIRECTIONS[line]?.[direction] ?? `direction ${direction}`
+
 /** "16 s", or "9.4 s" below ten. */
 export const seconds = (value: number) => `${value < 10 ? value.toFixed(1) : Math.round(value)} s`

@@ -89,6 +89,8 @@ figures:
 report:
 	@echo "==> supporting analyses"
 	$(PYTHON) -m mbta_ds.cli extras
+	@echo "==> where the T loses time"
+	$(PYTHON) -m mbta_ds.cli segments
 	@echo "==> writing the report"
 	$(PYTHON) -m mbta_ds.cli report
 	@echo "==> writing the plain-language story"

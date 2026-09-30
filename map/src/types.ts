@@ -109,6 +109,7 @@ export type Period = {
   label: string
   lateByHour?: { line: string; shares: (number | null)[] }[]
   lateShare?: number
+  lost?: TimeLost
   note: string
   ranges?: { coverage: number; dayType: string; stops: number; width: number }[]
   regression: ModelScore[]
@@ -121,4 +122,25 @@ export type Period = {
 export type Results = {
   crossSeason: { trained_on: string; spring_test_mae: number; winter_test_mae: number }[] | null
   periods: Period[]
+}
+
+/** Where a period's trains lost time (`segments` stage): per stretch of track and per platform. */
+export type LostPlace = { dir: number; good: number; line: string; mean: number; median: number; p90: number; perDay: number; trains: number }
+export type LostStretch = LostPlace & { from: string; terminal: boolean; to: string }
+export type LostPlatform = LostPlace & { station: string }
+export type TimeLost = {
+  platforms: LostPlatform[]
+  stretches: LostStretch[]
+  summary: {
+    by_hour: { hour: number; platform_mean: number; running_mean: number }[]
+    by_line: { line: string; platform_mean: number; running_mean: number; running_share: number }[]
+    days: number
+    into_terminal: { elsewhere_median_lost: number; median_lost: number; stretches: number }
+    lost_minutes_per_day: number
+    per_visit: { offpeak_mean: number; offpeak_median: number; peak_mean: number; peak_median: number }
+    platforms: number
+    running_share: number
+    stretches: number
+    top_tenth_share: number
+  }
 }

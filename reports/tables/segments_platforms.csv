@@ -1,0 +1,235 @@
+Station,Line,Direction,Trains,Good run (s),Typical train loses (s),1 in 10 loses (s),Train-minutes lost a day
+Park Street,Green,0,33515,61.0,16.0,89.0,220.2
+Kenmore,Green,1,25488,38.0,15.0,118.0,190.1
+Arlington,Green,0,35703,17.0,22.0,36.0,136.0
+Science Park/West End,Green,0,18659,35.0,13.0,105.0,134.3
+South Station,Red,0,14533,15.0,49.0,68.0,132.1
+Brigham Circle,Green,1,9609,40.0,19.0,216.0,124.8
+Park Street,Green,1,33810,60.0,14.0,39.0,121.1
+Copley,Green,0,35127,57.0,12.0,34.0,110.9
+Harvard Avenue,Green,1,8378,49.0,36.0,184.0,109.3
+Kenmore,Green,0,25195,39.0,12.0,47.0,107.7
+Coolidge Corner,Green,1,8075,48.0,34.0,182.0,104.7
+Copley,Green,1,34949,43.0,11.0,31.0,99.9
+Brigham Circle,Green,0,9714,45.0,38.0,95.0,88.4
+State,Orange,1,16847,18.0,27.0,40.0,86.3
+Arlington,Green,1,35311,36.0,8.0,25.0,85.6
+Museum of Fine Arts,Green,0,10053,35.0,47.0,75.0,85.0
+Haymarket,Green,0,18873,40.0,9.0,41.0,84.4
+North Station,Green,0,18748,53.0,12.0,38.0,78.3
+Reservoir,Green,1,9025,42.0,13.0,150.0,76.9
+Hynes Convention Center,Green,1,25351,38.0,10.0,28.0,75.6
+Warren Street,Green,1,8314,44.0,43.0,94.0,75.4
+Boylston,Green,1,35393,35.0,8.0,22.0,74.3
+Science Park/West End,Green,1,18532,9.0,20.0,31.0,72.8
+Chestnut Hill Avenue,Green,0,8224,38.0,44.0,94.7,72.5
+Wellington,Orange,1,16725,50.0,10.0,55.0,72.1
+Warren Street,Green,0,8233,33.0,39.0,96.0,72.0
+Hynes Convention Center,Green,0,25569,47.0,10.0,29.0,70.8
+Northeastern University,Green,0,10043,53.0,23.0,73.0,70.2
+Boylston,Green,0,35560,33.0,7.0,20.0,70.0
+Davis,Red,0,14549,22.0,26.0,40.0,69.4
+Saint Paul Street,Green,0,8187,19.0,47.0,72.0,68.4
+Harvard Avenue,Green,0,8234,45.0,43.0,80.0,68.0
+Saint Paul Street,Green,1,8080,33.0,38.5,81.0,68.0
+Government Center,Green,0,18402,44.0,12.0,38.0,67.8
+East Somerville,Green,0,9911,39.0,10.0,97.0,65.1
+Allston Street,Green,0,8228,16.0,45.0,72.0,64.9
+Porter,Red,0,14560,20.0,20.0,35.0,63.2
+Lechmere,Green,0,18479,43.0,10.0,28.0,62.6
+North Station,Green,1,18018,41.0,12.0,34.0,61.6
+JFK/UMass,Red,1,11729,48.0,15.0,50.0,61.4
+Downtown Crossing,Orange,1,16832,47.0,10.0,43.0,60.9
+Dean Road,Green,1,7799,16.0,32.0,76.0,58.8
+Riverway,Green,1,9597,15.0,27.0,72.0,58.8
+Harvard,Red,0,14563,54.0,12.0,39.0,58.1
+Boston University East,Green,1,8414,18.0,36.0,61.0,57.1
+Longwood Medical Area,Green,0,10038,38.0,21.0,66.0,57.0
+Mission Park,Green,0,9719,11.0,29.0,58.0,56.2
+Beaconsfield,Green,1,9151,29.0,19.0,38.0,55.8
+Fenwood Road,Green,1,9615,9.0,25.0,77.0,55.7
+Washington Street,Green,0,8216,39.0,31.0,74.0,55.2
+Kent Street,Green,1,8071,15.0,38.0,57.0,54.4
+Haymarket,Green,1,18487,43.0,10.0,26.0,54.0
+Packard's Corner,Green,1,8393,40.0,19.0,80.0,53.7
+South Station,Red,1,11697,52.0,14.0,46.0,52.2
+Downtown Crossing,Red,1,11670,55.0,13.0,60.0,52.0
+Woodland,Green,1,7706,30.0,17.0,49.0,51.8
+JFK/UMass,Red,0,14513,48.0,10.0,31.0,50.5
+Park Street,Red,0,14536,18.0,10.0,50.0,49.7
+Museum of Fine Arts,Green,1,9970,17.0,24.0,45.0,49.4
+Sullivan Square,Orange,1,16828,50.0,8.0,23.0,49.2
+Charles/MGH,Red,0,14564,45.0,10.0,32.0,48.4
+Dean Road,Green,0,8150,19.0,30.0,59.0,48.4
+Malden Center,Orange,1,16704,43.0,7.0,24.0,48.4
+Wellington,Orange,0,14717,43.0,8.0,40.0,48.1
+Fenway,Green,1,9021,39.0,15.0,59.0,48.0
+Boston University Central,Green,1,8412,19.0,27.0,54.0,47.8
+Kent Street,Green,0,8153,12.0,30.0,61.0,47.1
+Harvard,Red,1,11665,48.0,11.0,40.0,46.6
+Orient Heights,Blue,1,14313,35.0,6.0,32.0,46.4
+Lechmere,Green,1,17025,43.0,9.0,25.0,45.0
+Saint Mary's Street,Green,1,8060,36.0,12.0,79.0,44.2
+Orient Heights,Blue,0,14030,33.0,6.0,32.0,43.6
+Babcock Street,Green,1,8404,16.0,26.0,46.0,43.6
+Washington Square,Green,0,8165,34.0,25.0,58.0,43.4
+Central,Red,0,14560,47.0,10.0,26.0,43.0
+Davis,Red,1,11655,43.0,9.0,29.0,42.7
+Reservoir,Green,0,8403,34.0,13.0,46.0,42.5
+Mission Park,Green,1,9617,15.0,22.0,43.0,42.2
+Fenway,Green,0,8951,40.0,13.0,50.0,42.1
+Central,Red,1,11693,62.0,11.0,33.0,42.0
+Downtown Crossing,Red,0,14513,51.0,10.0,30.0,42.0
+Hawes Street,Green,1,8134,15.0,23.0,56.0,41.7
+Kendall/MIT,Red,0,14563,43.0,9.0,25.0,41.4
+Waban,Green,1,8592,17.0,19.0,41.0,41.2
+Park Street,Red,1,11688,58.0,11.0,34.0,41.0
+Back Bay,Orange,1,16844,49.0,7.0,22.0,41.0
+Maverick,Blue,1,14677,49.0,8.0,22.0,40.9
+Ball Square,Green,0,9593,36.0,10.0,31.0,40.4
+Kendall/MIT,Red,1,11686,62.0,10.0,30.0,40.3
+Prudential,Green,0,10038,41.0,10.0,31.0,40.1
+Government Center,Blue,0,14086,48.0,8.0,26.0,39.9
+Brookline Hills,Green,1,9064,29.0,20.0,38.0,39.6
+Assembly,Orange,1,16819,48.0,5.0,17.0,39.4
+Coolidge Corner,Green,0,8175,41.0,20.0,55.0,39.2
+Chiswick Road,Green,0,8223,14.0,26.0,39.0,38.9
+Boston University East,Green,0,8236,33.0,15.0,57.0,38.7
+Newton Highlands,Green,1,8861,33.0,15.0,36.0,38.7
+Amory Street,Green,1,8411,16.0,25.0,41.0,38.3
+Downtown Crossing,Orange,0,14751,41.0,9.0,25.0,37.9
+Government Center,Blue,1,14690,41.0,9.0,28.0,37.4
+State,Orange,0,14749,48.0,9.0,25.0,37.2
+North Station,Orange,1,16842,38.0,6.0,19.0,37.2
+Eliot,Green,1,8768,26.0,17.0,34.0,36.7
+Andrew,Red,0,14545,41.0,8.0,20.0,36.5
+Chiswick Road,Green,1,8169,25.0,22.0,38.0,36.3
+Chestnut Hill,Green,1,9002,35.0,15.0,38.0,36.2
+Chestnut Hill Avenue,Green,1,8036,23.0,22.0,34.0,36.1
+State,Blue,1,14689,44.0,8.0,25.0,35.9
+Maverick,Blue,0,14125,50.0,8.0,23.0,35.9
+State,Blue,0,14103,42.0,8.0,23.0,35.7
+Ruggles,Orange,1,16841,51.0,7.0,19.0,35.7
+Jackson Square,Orange,0,14718,49.0,6.0,20.0,35.6
+Newton Centre,Green,1,8941,34.0,14.0,35.0,35.6
+Summit Avenue,Green,1,8039,12.0,23.0,37.0,35.4
+Airport,Blue,1,14671,40.0,6.0,18.0,35.1
+Back Bay,Orange,0,14741,53.0,7.0,20.0,35.1
+Aquarium,Blue,1,14690,36.0,7.0,23.0,35.0
+South Street,Green,1,7364,13.0,21.0,35.0,35.0
+Airport,Blue,0,14134,40.0,6.0,19.0,34.8
+Charles/MGH,Red,1,11687,64.0,10.0,27.0,34.5
+Blandford Street,Green,0,8201,33.0,14.0,46.0,34.5
+Griggs Street,Green,1,8359,20.0,21.0,33.0,34.5
+Broadway,Red,1,11709,43.0,8.0,26.0,34.3
+Ball Square,Green,1,10876,26.0,15.0,25.0,34.2
+Longwood Medical Area,Green,1,9621,33.0,13.0,34.0,34.2
+Gilman Square,Green,1,10936,26.0,16.0,28.0,33.7
+Northeastern University,Green,1,9973,48.0,13.0,34.0,33.3
+Community College,Orange,1,16836,43.0,5.0,15.0,33.1
+Washington Street,Green,1,8255,36.0,11.0,36.0,32.6
+Woodland,Green,0,8906,26.0,16.0,30.0,32.6
+Aquarium,Blue,0,14107,42.0,7.0,21.0,32.5
+Summit Avenue,Green,0,8168,15.0,23.0,34.3,32.5
+Griggs Street,Green,0,8221,16.0,22.0,32.0,32.2
+Brookline Village,Green,1,9050,41.0,14.0,36.0,32.2
+Brookline Hills,Green,0,9027,26.0,16.0,33.0,32.1
+Suffolk Downs,Blue,1,14268,36.0,5.0,15.0,31.9
+Sutherland Road,Green,0,8221,13.0,22.0,32.0,31.9
+Jackson Square,Orange,1,16821,39.0,6.0,20.0,31.7
+Magoun Square,Green,1,10939,25.0,15.0,25.0,31.6
+Boston University Central,Green,0,8249,25.0,16.0,34.0,31.4
+Beachmont,Blue,1,11918,34.0,5.0,17.0,31.2
+Tufts Medical Center,Orange,1,16835,45.0,6.0,18.0,31.1
+Stony Brook,Orange,1,16818,59.0,5.0,16.0,30.8
+Magoun Square,Green,0,9847,33.0,10.0,23.0,30.7
+Allston Street,Green,1,8346,33.0,13.0,51.0,30.6
+Chinatown,Orange,1,16844,39.0,6.0,18.0,30.6
+Newton Highlands,Green,0,8947,28.0,16.0,31.0,30.6
+Ruggles,Orange,0,14730,43.0,6.0,16.0,30.6
+Blandford Street,Green,1,8408,32.0,12.0,28.0,30.5
+Wood Island,Blue,1,14616,33.0,4.0,13.0,30.0
+Beaconsfield,Green,0,9012,32.0,15.0,28.0,29.8
+South Street,Green,0,8105,13.0,21.0,38.0,29.8
+Massachusetts Avenue,Orange,1,16844,40.0,6.0,18.0,29.7
+Gilman Square,Green,0,9924,36.0,9.0,21.0,29.5
+Haymarket,Orange,1,16845,38.0,7.0,17.0,29.3
+Fairbanks Street,Green,1,8025,12.0,21.0,33.0,29.0
+Central Avenue,Mattapan,0,9970,31.0,14.0,30.0,28.9
+Fenwood Road,Green,0,9723,14.0,18.0,31.0,28.9
+Longwood,Green,1,9052,35.0,12.0,30.0,28.7
+Chestnut Hill,Green,0,8947,33.0,14.0,27.0,28.6
+Roxbury Crossing,Orange,1,16845,39.0,5.0,16.0,28.3
+Sutherland Road,Green,1,8202,26.1,13.9,29.9,28.1
+Longwood,Green,0,9017,34.0,11.0,32.0,27.8
+Eliot,Green,0,8936,23.0,16.0,27.0,27.8
+Prudential,Green,1,8542,39.0,11.0,31.0,27.7
+Amory Street,Green,0,8245,31.0,13.0,32.0,26.8
+Haymarket,Orange,0,14754,37.0,7.0,17.0,26.7
+Massachusetts Avenue,Orange,0,14739,50.0,5.0,16.0,26.7
+Brookline Village,Green,0,9029,39.0,12.0,29.0,26.7
+Central Avenue,Mattapan,1,9795,26.0,12.0,24.0,26.2
+Revere Beach,Blue,1,11857,35.0,5.0,16.0,26.2
+Fairbanks Street,Green,0,8169,12.0,21.0,30.0,26.0
+Babcock Street,Green,0,8239,30.0,13.0,30.0,25.7
+Brandon Hall,Green,1,8049,11.0,19.0,31.0,25.4
+Fields Corner,Red,0,7574,50.0,9.0,27.0,25.4
+Englewood Avenue,Green,1,3432,22.0,31.0,73.0,25.2
+Government Center,Green,1,18808,16.0,3.0,7.0,25.1
+Riverway,Green,0,9709,11.0,13.0,30.0,24.8
+Roxbury Crossing,Orange,0,14714,39.0,5.0,13.0,24.6
+Sullivan Square,Orange,0,14764,39.0,6.0,15.0,24.6
+Malden Center,Orange,0,14638,39.0,6.0,16.0,24.6
+Green Street,Orange,1,16723,36.0,5.0,15.0,24.6
+Quincy Center,Red,0,7659,50.0,9.0,27.0,24.5
+Hawes Street,Green,0,8184,12.0,20.0,31.0,24.4
+Washington Square,Green,1,7938,29.0,11.0,27.0,24.4
+Waban,Green,0,8934,23.3,14.7,25.7,24.0
+Savin Hill,Red,0,7403,50.0,8.0,23.0,23.9
+Shawmut,Red,0,7567,43.0,7.0,20.0,23.9
+East Somerville,Green,1,9890,36.0,10.0,24.0,23.8
+Newton Centre,Green,0,8949,35.0,10.0,26.0,23.6
+Tufts Medical Center,Orange,0,14746,37.0,6.0,14.0,23.5
+Beachmont,Blue,0,13685,33.0,5.0,13.0,23.4
+Chinatown,Orange,0,14748,36.0,6.0,15.0,23.4
+Wood Island,Blue,0,14109,32.0,4.0,13.0,23.0
+Assembly,Orange,0,14730,43.0,6.0,15.0,22.8
+North Quincy,Red,1,6269,52.0,8.0,28.0,22.7
+North Station,Orange,0,14756,16.0,3.0,28.0,22.7
+Suffolk Downs,Blue,0,14025,33.0,4.0,11.0,22.5
+North Quincy,Red,0,7631,49.0,9.0,26.0,22.3
+Brandon Hall,Green,0,8163,10.0,19.0,29.0,22.3
+Stony Brook,Orange,0,14688,38.0,5.0,12.0,22.1
+Revere Beach,Blue,0,13622,36.0,6.0,14.0,22.1
+Saint Mary's Street,Green,0,8105,35.0,10.0,27.0,22.0
+Packard's Corner,Green,0,8234,30.0,13.0,27.0,21.9
+Community College,Orange,0,14758,44.0,5.0,14.0,21.7
+Quincy Adams,Red,1,6712,46.0,9.0,32.0,21.4
+Back of the Hill,Green,0,8098,12.0,5.0,30.0,20.5
+Milton,Mattapan,0,9958,11.0,11.0,20.0,20.1
+Wollaston,Red,1,6289,40.0,11.0,27.0,19.6
+Tappan Street,Green,1,4461,16.0,21.0,36.0,18.7
+Porter,Red,1,11669,14.0,3.0,27.0,18.2
+Savin Hill,Red,1,6077,59.0,7.0,26.0,17.6
+Cedar Grove,Mattapan,1,9870,11.0,4.0,16.0,16.8
+Wollaston,Red,0,7664,18.0,4.0,32.0,16.7
+Tappan Street,Green,0,3837,14.0,22.0,39.0,15.4
+Butler,Mattapan,0,9935,10.0,4.0,18.0,14.7
+Back of the Hill,Green,1,9452,12.0,2.0,24.0,14.7
+Symphony,Green,0,6961,37.0,7.0,18.0,14.6
+Butler,Mattapan,1,9771,10.0,5.0,17.0,14.4
+Symphony,Green,1,6884,35.0,9.0,21.0,14.2
+Cedar Grove,Mattapan,0,9925,9.0,5.0,16.0,14.0
+Shawmut,Red,1,6190,40.0,8.0,19.0,13.6
+Milton,Mattapan,1,9826,12.0,4.0,19.0,13.4
+Andrew,Red,1,11726,11.0,5.0,8.0,13.1
+Englewood Avenue,Green,0,3832,12.0,21.0,30.0,12.9
+Valley Road,Mattapan,1,9756,7.0,4.0,12.0,11.5
+Broadway,Red,0,14549,17.0,2.0,6.0,10.1
+Green Street,Orange,0,14673,14.0,2.0,6.0,9.7
+Valley Road,Mattapan,0,9991,10.0,3.0,12.0,9.3
+Capen Street,Mattapan,1,9620,8.0,2.0,8.0,8.8
+Fields Corner,Red,1,6186,20.0,2.0,6.0,4.1
+Capen Street,Mattapan,0,9993,5.0,1.0,3.0,3.6
+Quincy Center,Red,1,6304,13.0,2.0,5.0,3.4
+Quincy Adams,Red,0,7641,13.0,1.0,5.0,3.3

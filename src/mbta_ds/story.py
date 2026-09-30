@@ -85,6 +85,13 @@ PLAIN_FEATURES = {
     "line_late_share_15m": "How late the rest of the line is",
     "prev_delay_2": "How late it was two stops back",
     "leader_delay": "How late the train in front is",
+    "prev_headway_seconds": "Gap to the train in front at the last stop",
+    "scheduled_elapsed_seconds": "Scheduled time since the trip began",
+    "stop_sequence": "Where the stop falls in the timetable",
+    "stop_index": "Stops travelled so far",
+    "leader_age_seconds": "How long since the train in front passed",
+    "vehicle_prev_trip_delay": "How late the train finished its last trip",
+    "delay_trend": "Whether it was gaining or losing time",
 }
 #: Right-closed, so "5-10" and "10+" together are exactly the ``late`` label (> 5 min).
 BANDS = (("On time (up to 1 min late)", -np.inf, 60), ("1-5 min late", 60, 300),

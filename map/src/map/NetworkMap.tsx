@@ -5,7 +5,7 @@ import {
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import type { Feature, FeatureCollection } from 'geojson'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import basemap from './basemap.json'
+import { basemap } from './basemap'
 import { columnRing } from '../data/geometry'
 import { isInterchange, METRICS, type MetricId, type PreparedNetwork, RELIABILITY_COLORS, UNCLUSTERED_COLOR } from '../data/network'
 import { bandOf, DELAY_BANDS, type Vehicle } from '../data/replay'
@@ -19,6 +19,8 @@ export type Selection = { id: string; kind: 'station' | 'trip' }
 
 type Props = {
   focus?: { stationId: string }
+  /** A route to bring forward, dimming the rest (from hovering a results chart). */
+  highlightLine?: string
   /** Stations named by an MBTA alert in effect at the replay's time. */
   incidentStations: string[]
   metric: MetricId
@@ -134,22 +136,27 @@ function addLayers(map: MapLibreMap, network: PreparedNetwork) {
 }
 
 function overview(map: MapLibreMap, network: PreparedNetwork, mode: Mode) {
-  const compact = map.getContainer().clientWidth <= 760
+  const compact = map.getContainer().clientWidth <= 560
   const pitch = PITCH[mode]
+  // The panel is docked beside the map, so only the replay's transport bar overlaps it.
+  // Tilting pushes the near (southern) end of the network down the frame, so the
+  // bottom keeps extra room: Braintree must stay in view. On wide screens the
+  // replay's transport bar also lies over the map; stacked, it sits below it.
+  const overlaid = mode === 'replay' && !window.matchMedia('(max-width: 820px)').matches
+  const bottom = overlaid ? 170 : compact ? 40 : 90
   const camera = map.cameraForBounds(network.bounds, {
     bearing: -14,
-    padding: compact ? { bottom: 190, left: 20, right: 20, top: 150 } : { bottom: 150, left: 380, right: 120, top: 110 },
+    padding: compact ? { bottom, left: 16, right: 16, top: 16 } : { bottom, left: 48, right: 64, top: 24 },
   })
   if (camera?.zoom === undefined) return
-  // The fit is computed flat; tilting foreshortens the (tall) network, so zoom in
-  // by most of that foreshortening to keep it filling the frame.
-  const zoom = camera.zoom + 0.8 * Math.log2(1 / Math.cos((pitch * Math.PI) / 180))
+  // The fit is computed flat; tilting foreshortens the tall network, so win back a little of it.
+  const zoom = camera.zoom + 0.25 * Math.log2(1 / Math.cos((pitch * Math.PI) / 180))
   map.easeTo({ ...camera, duration: reducedMotion() ? 0 : 900, pitch, zoom })
 }
 
 const source = (map: MapLibreMap, id: string) => map.getSource(id) as GeoJSONSource
 
-export function NetworkMap({ focus, incidentStations, metric, mode, network, onSelect, rideTripId, selection, vehicles }: Props) {
+export function NetworkMap({ focus, highlightLine, incidentStations, metric, mode, network, onSelect, rideTripId, selection, vehicles }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const [loaded, setLoaded] = useState(false)
@@ -186,7 +193,13 @@ export function NetworkMap({ focus, incidentStations, metric, mode, network, onS
       addLayers(map, initialNetwork)
       setLoaded(true)
     })
+    // The compact attribution opens expanded on wide maps; start it folded behind its (i).
+    map.once('load', () => container.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'))
+    // The panel beside the map changes width between views; keep the canvas in step.
+    const resize = new ResizeObserver(() => map.resize())
+    resize.observe(container)
     return () => {
+      resize.disconnect()
       map.remove()
       mapRef.current = null
     }
@@ -242,9 +255,14 @@ export function NetworkMap({ focus, incidentStations, metric, mode, network, onS
     const map = mapRef.current
     const station = focus && network.stationById.get(focus.stationId)
     if (!loaded || !map || !station) return
-    const compact = map.getContainer().clientWidth <= 760
-    map.easeTo({ center: station.coords, duration: reducedMotion() ? 0 : 700, offset: compact ? [0, -90] : [-120, 0], zoom: Math.max(13.5, map.getZoom()) })
+    map.easeTo({ center: station.coords, duration: reducedMotion() ? 0 : 700, zoom: Math.max(13.5, map.getZoom()) })
   }, [focus, loaded, network])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!loaded || !map || rideTripId) return
+    map.setPaintProperty('line-core', 'line-opacity', highlightLine ? ['case', ['==', ['get', 'line'], highlightLine], 1, 0.18] : 1)
+  }, [highlightLine, loaded, rideTripId])
 
   // Ride: fly down to the train once, then keep it centred as it moves.
   const ridden = rideTripId ? vehicles.find((vehicle) => vehicle.trip.id === rideTripId) : undefined

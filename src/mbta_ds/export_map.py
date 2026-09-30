@@ -10,6 +10,9 @@ Two kinds of JSON file, both written to ``map/public/data/``:
   riders there (``clean.lateness``), its delay against the timetable, and the
   model's prediction of that delay, plus the service incidents the MBTA reported
   that day (its alerts archive): when, on which lines and stations, and what.
+* ``results.json``: the results panel's tables for every period that has been
+  built (spring, winter, the July-September holdout), read from what each run's
+  training, tail and cleaning stages saved.
 
 Positions in the app are interpolated only between a trip's *observed* stops,
 so no train is ever drawn where the data does not place it. Shapes and line
@@ -369,6 +372,142 @@ def load_day_alerts() -> pd.DataFrame:
         return pd.DataFrame(columns=_ALERT_COLUMNS)
 
 
+# ---------------------------------------------------------------------------
+# Results
+# ---------------------------------------------------------------------------
+#: (run, id, label, note) of every period the results panel can show; a period is
+#: left out when its run has not been built.
+PERIODS = (
+    ("", "spring", "Spring 2026", "The main analysis window."),
+    ("winter", "winter", "Winter 2025–26", "December to February, storms included."),
+    ("holdout", "holdout", "Jul–Sep 2026", "Run once, after every design choice was made."),
+)
+#: Readable model names; the headline and the candidate are flagged in the app.
+_MODEL_LABELS = {
+    "hist_gradient_boosting_change": "Gradient boosting on the change since the last stop",
+    "hist_gradient_boosting_run_time": "Gradient boosting correcting the running-time lookup",
+    "hist_gradient_boosting_mae": "Gradient boosting, absolute-error loss",
+    "hist_gradient_boosting": "Gradient boosting, squared-error loss",
+    "decision_tree": "Decision tree",
+    "ridge": "Ridge regression",
+    "logistic_regression": "Logistic regression",
+    "random_forest": "Random forest",
+    "knn": "k-nearest neighbours",
+    "baseline_persistence": "Stays as late as it is now",
+    "baseline_run_time": "Left the last stop + usual running time",
+    "baseline_route_hour_mean": "Usual delay for the line and hour",
+    "baseline_zero": "Always on time",
+    "baseline_route_hour_rate": "Usual late rate for the line and hour",
+    "baseline_always_ontime": "Never late",
+}
+
+
+def _records(frame: pd.DataFrame, columns: dict[str, str], digits: int = 3) -> list[dict]:
+    """Rows of ``frame`` as dicts with the renamed ``columns``, floats rounded, NaN as null."""
+    out = frame[[c for c in columns if c in frame]].rename(columns=columns)
+    rows = []
+    for row in out.to_dict("records"):
+        rows.append({k: (None if isinstance(v, float) and np.isnan(v)
+                         else round(v, digits) if isinstance(v, float) else
+                         v.item() if isinstance(v, np.generic) else v)
+                     for k, v in row.items()})
+    return rows
+
+
+def _arrival_bands(processed: Path) -> dict:
+    """Lateness bands and late share by hour, per line, from the run's clean table."""
+    from . import story
+
+    arrivals = pd.read_parquet(processed / "trips_clean.parquet", columns=[
+        "route_id", "lateness_seconds", "late", "scheduled_hour", "is_origin", "time_inconsistent"])
+    arrivals = arrivals[clean.is_arrival(arrivals)]
+    bands = story.delay_bands(arrivals)
+    by_hour = story.late_by_hour(arrivals)
+    return {
+        "arrivals": int(len(arrivals)),
+        "lateShare": round(float(arrivals["late"].mean()), 4),
+        "bands": [b[0] for b in story.BANDS],
+        "bandsByLine": [{"line": line, "shares": [round(float(v), 4) for v in row]}
+                        for line, row in bands.iterrows()],
+        "hours": [int(h) for h in by_hour.columns],
+        "lateByHour": [{"line": line, "shares": [None if pd.isna(v) else round(float(v), 4) for v in row]}
+                       for line, row in by_hour.iterrows()],
+    }
+
+
+def build_period(processed: Path) -> dict:
+    """Everything the results panel shows for one run, read from what it saved."""
+    metrics = json.loads((processed / "model_metrics.json").read_text(encoding="utf-8"))
+    out: dict = {"split": metrics["split"]}
+    regression = pd.DataFrame(metrics["regression"])
+    regression["label"] = regression["model"].map(_MODEL_LABELS).fillna(regression["model"])
+    out["regression"] = _records(regression, {"model": "id", "label": "label", "mae_seconds": "mae",
+                                              "rmse_seconds": "rmse", "r2": "r2", "bias_seconds": "bias"})
+    classification = pd.DataFrame(metrics["classification"])
+    classification["label"] = (classification["model"].replace({"hist_gradient_boosting": "Gradient boosting"})
+                               .map(lambda m: _MODEL_LABELS.get(m, m)))
+    out["classification"] = _records(classification, {
+        "model": "id", "label": "label", "f1": "f1", "precision": "precision", "recall": "recall",
+        "roc_auc": "rocAuc", "pr_auc": "prAuc", "base_rate": "baseRate"})
+    out["horizons"] = _records(pd.DataFrame(metrics["horizons"]), {
+        "horizon_stops": "stops", "n_test": "n", "persistence_mae": "persistence",
+        "run_time_mae": "runTime", "own_train_mae": "ownTrain", "with_other_trains_mae": "model"})
+    out["backtest"] = _records(pd.DataFrame(metrics["backtest"]), {
+        "test_start": "from", "test_end": "to", "train_days": "trainDays", "n_test": "n",
+        "persistence_mae": "persistence", "run_time_mae": "runTime", "run_time_model_mae": "candidate",
+        "model_mae": "model"})
+    errors = metrics["error_analysis"]
+    out["byLine"] = _records(pd.DataFrame(errors["by_route"]), {
+        "route_id": "line", "mae": "mae", "median_abs_error": "median", "n": "n"})
+    out["byDayType"] = _records(pd.DataFrame(errors["by_day_type"]), {
+        "day_type": "dayType", "mae": "mae", "median_abs_error": "median", "n": "n"})
+    out["ablation"] = _records(pd.DataFrame(metrics["ablation"]), {
+        "features": "features", "n_features": "n", "mae_seconds": "mae", "mae_seed_spread": "spread"})
+
+    importance = processed / "feature_importance.csv"
+    if importance.exists():
+        from .story import PLAIN_FEATURES
+        table = pd.read_csv(importance).head(8)
+        table["label"] = table["feature"].map(PLAIN_FEATURES).fillna(table["feature"])
+        out["importance"] = _records(table, {"feature": "feature", "label": "label",
+                                             "importance_mae": "value"})
+    tail = processed / "tail_metrics.json"
+    if tail.exists():
+        tail = json.loads(tail.read_text(encoding="utf-8"))
+        out["warning"] = _records(pd.DataFrame(tail["warning"]), {
+            "horizon_stops": "stops", "method": "method", "subset": "subset", "n": "n",
+            "positives": "positives", "pr_auc": "prAuc", "recall_at_50pct_precision": "recall"})
+        out["ranges"] = _records(pd.DataFrame(tail["ranges"]), {
+            "horizon_stops": "stops", "day_type": "dayType", "coverage": "coverage",
+            "median_width_seconds": "width"})
+    for name, key, columns in (("clean_ledger.csv", "cleaning", {"step": "step", "rows_removed": "removed"}),
+                               ("validation.csv", "validation", {
+                                   "source": "source", "check": "check", "value": "value", "op": "op",
+                                   "limit": "limit", "hard": "hard", "ok": "ok"})):
+        if (processed / name).exists():
+            out[key] = _records(pd.read_csv(processed / name), columns)
+    if (processed / "trips_clean.parquet").exists():
+        out.update(_arrival_bands(processed))
+    return out
+
+
+def build_results(periods=PERIODS) -> dict:
+    """``results.json``: every built period's results, and the cross-season test."""
+    built = []
+    for run, period_id, label, note in periods:
+        processed = _run_dir(run) / "processed"
+        if not (processed / "model_metrics.json").exists():
+            log.warning("results: skipping %s, run %r has not been trained", label, run or "spring")
+            continue
+        window_file = _run_dir(run) / "analysis_window.json"
+        window = json.loads(window_file.read_text(encoding="utf-8")) if window_file.exists() else {}
+        built.append({"id": period_id, "label": label, "note": note,
+                      "window": [window.get("start"), window.get("end")], **build_period(processed)})
+    cross = config.DATA_DIR / "processed" / "extras.json"
+    seasons = json.loads(cross.read_text(encoding="utf-8")).get("cross_season") if cross.exists() else None
+    return {"periods": built, "crossSeason": seasons}
+
+
 def _dump(path: Path, payload: dict) -> int:
     text = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
     path.write_text(text, encoding="utf-8")
@@ -424,6 +563,7 @@ def run(days: tuple[tuple[str, str, str, str], ...] = DEFAULT_DAYS, out_dir: Pat
         "replays": replays,
     }
     written["network.json"] = _dump(out_dir / "network.json", network)
+    written["results.json"] = _dump(out_dir / "results.json", build_results())
     for file, size in written.items():
         log.info("wrote %s (%.0f KB)", file, size / 1024)
     return {"out_dir": str(out_dir), "files": written, "patterns": len(patterns),

@@ -14,6 +14,8 @@ clean,share of arrivals more than 1 h off schedule,0.0023,>=,0.0,False,True
 clean,|median arrival delay| in seconds (sanity),56.0,<=,120.0,True,True
 clean,stations left as raw ids (name lookup failed),0.0,==,0.0,True,True
 clean,route-days below 60% of usual volume (shutdowns),79.0,>=,0.0,False,True
+clean,share of arrivals judged by the timetable (no gap recorded),0.0047,>=,0.0,False,True
+clean,share of arrivals behind the timetable that riders saw on time (drift),0.732,>=,0.0,False,True
 features,service dates outside the analysis window,0.0,==,0.0,True,True
 features,target columns among the features,0.0,==,0.0,True,True
 features,declared features absent from the table,0.0,==,0.0,True,True
@@ -29,3 +31,4 @@ weather,missing values,0.0,==,0.0,True,True
 weather,temperatures outside -30..45 C,0.0,==,0.0,True,True
 weather,humidity outside 0..100 %,0.0,==,0.0,True,True
 weather,negative precipitation or snowfall,0.0,==,0.0,True,True
+alerts,window days after the alerts archive ends,0.0,==,0.0,True,True

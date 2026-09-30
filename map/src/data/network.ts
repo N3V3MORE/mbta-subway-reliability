@@ -1,4 +1,4 @@
-import type { Line, Network, ReplayDay, Station } from '../types'
+import type { Line, Network, ReplayDay, Results, Station } from '../types'
 import { type PreparedReplay, prepareReplay } from './replay'
 import { formatDelay, formatPercent } from './format'
 
@@ -62,6 +62,14 @@ export function loadNetwork() {
     stationById: new Map(network.stations.map((station) => [station.id, station])),
   }))
   return networkPromise
+}
+
+let resultsPromise: Promise<Results> | undefined
+
+/** The results panel's tables. A missing file is an empty result, not an error: the map still works. */
+export function loadResults() {
+  resultsPromise ??= fetchJson<Results>('results.json').catch(() => ({ crossSeason: null, periods: [] }))
+  return resultsPromise
 }
 
 const replays = new Map<string, Promise<PreparedReplay>>()

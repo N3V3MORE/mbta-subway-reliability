@@ -148,5 +148,40 @@ def test_incidents_are_the_days_service_alerts_with_start_end_and_stations():
     assert delay["end"] == 16 * 3600 + 23 * 60 and delay["stations"] == []
 
 
+def test_results_period_reads_what_the_run_saved(tmp_path):
+    import json
+
+    metrics = {
+        "split": {"cutoff_service_date": "20260607"},
+        "regression": [{"model": "hist_gradient_boosting_change", "mae_seconds": 16.21, "rmse_seconds": 60.7,
+                        "r2": 0.98, "bias_seconds": -1.0},
+                       {"model": "baseline_persistence", "mae_seconds": 49.0, "rmse_seconds": 124.4,
+                        "r2": 0.9, "bias_seconds": float("nan")}],
+        "classification": [{"model": "hist_gradient_boosting", "f1": 0.873, "precision": 0.89, "recall": 0.86,
+                            "roc_auc": 0.981, "pr_auc": 0.92, "base_rate": 0.1}],
+        "horizons": [{"horizon_stops": 1, "n_test": 10, "persistence_mae": 49.0, "run_time_mae": 14.9,
+                      "own_train_mae": 16.8, "with_other_trains_mae": 16.2}],
+        "backtest": [{"test_start": "20260506", "test_end": "20260519", "train_days": 34, "n_test": 5,
+                      "persistence_mae": 49.4, "run_time_mae": 12.6, "run_time_model_mae": 11.3, "model_mae": 15.4}],
+        "error_analysis": {"by_route": [{"route_id": "Red", "mae": 14.0, "median_abs_error": 5.0, "n": 3}],
+                           "by_day_type": [{"day_type": "normal", "mae": 15.0, "median_abs_error": 5.0, "n": 3}]},
+        "ablation": [{"features": "schedule", "n_features": 8, "mae_seconds": 254.5, "mae_seed_spread": 0.05}],
+    }
+    (tmp_path / "model_metrics.json").write_text(json.dumps(metrics), encoding="utf-8")
+
+    period = export_map.build_period(tmp_path)
+
+    headline, persistence = period["regression"]
+    assert headline == {"id": "hist_gradient_boosting_change", "mae": 16.21, "rmse": 60.7, "r2": 0.98, "bias": -1.0,
+                        "label": "Gradient boosting on the change since the last stop"}
+    assert persistence["label"] == "Stays as late as it is now" and persistence["bias"] is None
+    assert period["classification"][0]["label"] == "Gradient boosting"
+    assert period["horizons"] == [{"stops": 1, "n": 10, "persistence": 49.0, "runTime": 14.9,
+                                   "ownTrain": 16.8, "model": 16.2}]
+    assert period["byLine"][0]["line"] == "Red"
+    # Stages that did not run leave their keys out rather than failing the export.
+    assert "warning" not in period and "bands" not in period
+
+
 def test_no_alerts_archive_means_no_incidents():
     assert export_map.build_incidents(pd.DataFrame(), "2026-09-16", 0, {}, {}) == []

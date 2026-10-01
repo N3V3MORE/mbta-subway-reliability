@@ -16,7 +16,7 @@
 param(
     [Parameter(Position = 0)]
     [ValidateSet('help', 'all', 'setup', 'data', 'live', 'model', 'model-full',
-                 'cluster', 'figures', 'report', 'map', 'test', 'clean', 'distclean',
+                 'cluster', 'figures', 'report', 'map', 'site', 'test', 'clean', 'distclean',
                  'live-day', 'schedule-live', 'unschedule-live')]
     [string]$Target = 'help',
 
@@ -82,6 +82,7 @@ Targets:
   figures      render interactive and static figures
   report       write reports/report.html, reports/story.html and reports/tables/*.csv
   map          export map data and open the 3D map (needs Node.js)
+  site         export map data and rebuild the ready-to-view app in docs\
   all          setup + data + model + cluster + figures + report
   test         run the test suite
   clean        remove generated data and figures
@@ -150,6 +151,14 @@ Targets:
         npm --prefix map install --no-audit --no-fund
         if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
         npm --prefix map run dev
+    }
+    'site' {
+        Invoke-Step 'exporting the network, replay days and results for the app' @('-m', 'mbta_ds.cli', 'export-map')
+        Write-Host '==> building the ready-to-view app into docs' -ForegroundColor Cyan
+        npm --prefix map install --no-audit --no-fund
+        if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+        npm --prefix map run build:site
+        if ($LASTEXITCODE -ne 0) { throw 'site build failed' }
     }
     'test' {
         Invoke-Step 'running tests' @('-m', 'pytest', '-q')

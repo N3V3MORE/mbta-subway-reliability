@@ -64,6 +64,12 @@ npm run dev
 `make map` (or `.\make.ps1 map` on Windows) re-exports the data from the pipeline
 first and then starts the app.
 
+A built copy lives in the repository's `docs/` folder, so the app can be seen
+without Node.js (`python -m http.server 8000 -d docs` from the repository root). It
+is not rebuilt automatically: after changing the app or its data, run `make site`
+(or `npm run build:site` here) and commit `docs/` too. GitHub Pages can serve that
+folder as it is ("Deploy from a branch", `main`, `/docs`).
+
 ## Where the data comes from
 
 `python -m mbta_ds.cli export-map` writes:

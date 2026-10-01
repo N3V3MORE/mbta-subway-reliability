@@ -21,18 +21,28 @@ and where the network loses time, from 3.9 million MBTA stop records.
 - Sudden big delays are mostly unforeseeable: one stop ahead the model flags 27%
   of them, five stops ahead 6%.
 
-## Run it
+## See it
 
-The app runs straight from a clone (Node.js 20.19+ or 22.12+):
+Everything comes pre-built; nothing needs installing.
 
-```bash
-cd map
-npm install
-npm run dev
-```
+- The app is built into `docs/`. Browsers won't load its data from a
+  double-clicked file, so serve the folder with Python and open
+  <http://localhost:8000>:
 
-Rebuilding the analysis needs Python 3.11–3.13:
-`make all` (or `.\make.ps1 all` on Windows). 260 tests run with `make test`.
+  ```bash
+  python -m http.server 8000 -d docs
+  ```
+
+- The reports open directly: [`reports/story.html`](reports/story.html) (the
+  results in plain words) and [`reports/report.html`](reports/report.html) (every
+  table and figure).
+
+## Rebuild it
+
+- Edit the app: `cd map`, `npm install`, `npm run dev` (Node.js 20.19+ or 22.12+).
+- Re-run the analysis: `make all` (or `.\make.ps1 all` on Windows), Python
+  3.11–3.13. 260 tests run with `make test`.
+- Refresh the ready-to-view app after either: `make site`.
 
 ## More
 

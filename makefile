@@ -22,7 +22,7 @@ ifdef RUN
 export MBTA_RUN := $(RUN)
 endif
 
-.PHONY: help all setup data live live-day model model-full cluster figures report map test clean distclean
+.PHONY: help all setup data live live-day model model-full cluster figures report map site test clean distclean
 
 help:
 	@echo "Targets:"
@@ -35,6 +35,7 @@ help:
 	@echo "  figures      render interactive and static figures"
 	@echo "  report       write reports/report.html, reports/story.html and reports/tables/*.csv"
 	@echo "  map          export map data and open the 3D map (needs Node.js)"
+	@echo "  site         export map data and rebuild the ready-to-view app in docs/"
 	@echo "  all          setup + data + model + cluster + figures + report"
 	@echo "  test         run the test suite"
 	@echo "  clean        remove generated data and figures"
@@ -102,6 +103,13 @@ map:
 	@echo "==> starting the map at http://localhost:5173 (Ctrl-C to stop)"
 	npm --prefix map install --no-audit --no-fund
 	npm --prefix map run dev
+
+site:
+	@echo "==> exporting the network, replay days and results for the app"
+	$(PYTHON) -m mbta_ds.cli export-map
+	@echo "==> building the ready-to-view app into docs/"
+	npm --prefix map install --no-audit --no-fund
+	npm --prefix map run build:site
 
 test:
 	@echo "==> running tests"

@@ -1,116 +1,125 @@
 # MBTA Subway Reliability & Ridership Analytics
 
-**CS 506 (Data Science Tools and Applications) — final project**
+CS 506 (Data Science Tools and Applications), final project. This is the full
+report; [README.md](README.md) is the one-page version.
 
-Predicting when the T runs late, and what kind of stations the network is made of.
-This repository implements the full data-science lifecycle — collection, cleaning,
-feature extraction, visualisation and modelling — on real MBTA open data.
+The project asks when Boston's subway runs late, whether a train's delay can be
+predicted, what kinds of station the network is made of, and where it loses time.
+It covers the whole data-science lifecycle (collection, cleaning, feature
+extraction, modelling, visualisation) on real MBTA open data. Two tracks share one
+dataset builder:
 
-Two tracks share one dataset builder:
+* Track A, arrival delay: predict a train's delay in seconds at its next stop,
+  classify whether riders will wait more than 5 minutes longer than planned, and
+  cluster stations by how reliably they are served.
+* Track B, demand: cluster stations by the *shape* of their ridership through the
+  day, and test whether reliability and demand type are related.
 
-* **Track A — arrival delay.** Predict subway arrival delay in seconds, and
-  classify whether a train will be more than 5 minutes late. Then cluster stations
-  by how reliably they are served.
-* **Track B — demand.** Cluster stations by the *shape* of their ridership through
-  the day, and test whether reliability and demand type are related.
+## Summary
 
-**Headline result.** Gradient boosting that predicts *how much delay a train gains
-or loses since its last stop* has a mean absolute error of **16.1 seconds**, a
-**67% improvement** on delay persistence (48.9 s), steady at 66–70% across four
-separate test periods. **One stop ahead it does not beat the textbook transit
-baseline**: the time the train left its last stop plus that stretch's usual
-running time scores **14.0 s** (§7, *The baseline persistence leaves out*). The
-model earns its keep further ahead: five stops out that lookup errs by 77.3 s
-against the model's 66.7 s. A model that starts from the lookup and learns only its
-correction scores **12.4 s**, better than both, and wins in every backtest window;
-it is reported as a candidate, not the headline, because it was designed after
-these test scores were seen (§7). **The change model holds in winter too**: on
-December–February, storms included, it scores 17.5 s against 48.3 s (64%, and
-63–68% in every fortnight). Lateness classification reaches **F1 0.874 / ROC-AUC
-0.982**. Ten stops ahead, the model remains roughly a quarter better than persistence.
+### Predicting the next stop
 
-**Checked on a later period.** The pipeline was first run on July–September
-2026 after the core design choices had been made on spring and winter. The corrected run scores
-**15.1 s against persistence's 47.0 s (68%)**. The first run on that holdout
-found one weakness, isolated corrupt stop records copied forward by the change
-target. The cleaning rule that fixes it was set on spring data, and §7
-(*Holdout*) reports both runs.
+Gradient boosting that predicts *how much delay a train gains or loses since its
+last stop* has a mean absolute error of 16.1 seconds, 67% below delay persistence
+("it stays as late as it is", 48.9 s), and 66–70% below it in each of four
+separate test periods. One stop ahead it does not beat the textbook transit
+baseline: the time the train left its last stop plus that stretch's usual running
+time scores 14.0 s (§7, *The baseline persistence leaves out*). The model earns its
+keep further ahead: five stops out, that lookup errs by 77.3 s against the model's
+66.7 s, and ten stops out the model is still roughly a quarter better than
+persistence. A model that starts from the lookup and learns only its correction
+scores 12.4 s and wins in every backtest window, but it is reported as a candidate,
+not the headline, because it was designed after these test scores were seen (§7).
+Classifying lateness reaches F1 0.874 and ROC-AUC 0.982.
 
-**How the winter run changed the model.** Predicting the delay itself failed in
-winter: that model averaged 103 s in the fortnight of the 25 January storm, twice
-persistence's error. The cause was not weather but range. On storm days trains
-were logged *hours* behind the timetable, beyond anything in training, and a tree
-model can only predict values it has seen. Predicting the change since the last
-stop removes the cap, and improved spring by 29% as well (§7).
+### Winter, and a later period
 
-**Headline finding.** Almost all of the predictive power comes from one feature:
-the train's delay at its previous stop. Delays are *sticky*: a train that is five
-minutes late at one stop is almost exactly five minutes late at the next. Everything
-else — weather, mode, service alerts, the schedule itself — is worth an order of
-magnitude less. The project also documents a time-index feature whose damage
-depended on how early stopping was validated (§7), five defects in the source data
-that had been quietly shaping earlier results (§5), and a ridership calculation
-that halved the network's busiest stations until it was caught (§8).
+On December–February, storms included, the model scores 17.5 s against 48.3 s
+(64%, and 63–68% in every fortnight). Winter also changed the model. Predicting the
+delay itself failed there: that version averaged 103 s in the fortnight of the 25
+January storm, twice persistence's error. The cause was range, not weather. On
+storm days trains were logged *hours* behind the timetable, beyond anything in
+training, and a tree model can only predict values it has seen. Predicting the
+change since the last stop removes that cap, and it improved spring by 29% as well
+(§7).
 
-**Where the T loses time.** Against each stretch's and platform's own good runs,
-the network loses about 17,000–19,000 train-minutes a day, half of it moving and
-half standing at platforms, and in the same places every season. The last stretch
-into Alewife is the worst per train (76 s lost typically, 4 minutes for 1 train in
-10), terminals in general cost twice what other stretches do, and the Green
-Line's street-running branches follow. Rush hour barely changes any of it (§8,
-*Where the T loses time*).
+The pipeline was then run on July–September 2026, after the core design choices
+had been made on spring and winter. The corrected run scores 15.1 s against
+persistence's 47.0 s (68%). The first run on that period found one weakness,
+isolated corrupt stop records copied forward by the change target; the cleaning
+rule that fixes it was set on spring data, and §7 (*Holdout*) reports both runs.
+
+### What the predictions rest on
+
+Almost all of the predictive power comes from one feature: the train's delay at
+its previous stop. Delays are *sticky*: a train five minutes late at one stop is
+almost exactly five minutes late at the next. Weather, service alerts and the
+schedule itself are worth an order of magnitude less. The report also documents a
+time-index feature whose damage depended on how early stopping was validated (§7),
+five defects in the source data that had been quietly shaping earlier results
+(§5), and a ridership calculation that halved the network's busiest stations until
+it was caught (§8).
+
+### Where the T loses time
+
+Against each stretch's and platform's own good runs, the network loses about
+17,000–19,000 train-minutes a day, half of it moving and half standing at
+platforms, and in the same places every season. The last stretch into Alewife is
+the worst per train (76 s lost typically, 4 minutes for 1 train in 10), terminals in
+general cost twice what other stretches do, and the Green Line's street-running
+branches follow. Rush hour barely changes any of it (§8, *Where the T loses time*).
 
 ---
 
 ## The project in pictures (no maths needed)
 
-**Open [`reports/story.html`](reports/story.html)** for the whole story in eight
+Open [`reports/story.html`](reports/story.html) for the whole story in eight
 interactive charts, each answering one plain question (hover for exact values).
 It is written by `make report`, or on its own by `python -m mbta_ds.cli story`.
 Four of the charts, in brief:
 
-**How late do trains run?** Most arrivals are within a few minutes of the
+How late do trains run? Most arrivals are within a few minutes of the
 timetable. The Red Line is late most often; the Mattapan trolley keeps closest to
 schedule.
 
 ![Share of arrivals on time, 1-5, 5-10 and 10+ minutes late, by line](reports/figures/story_delay_bands.png)
 
-**Why can delays be predicted at all?** Because a late train stays late. Each line
+Why can delays be predicted at all? Because a late train stays late. Each line
 below is one real Orange Line train, end to end: whatever delay it has, it mostly
 keeps. The one big jump, at Chinatown, is the kind of sudden change nothing
 upstream warns about.
 
 ![Delay of three real Orange Line trains at each stop](reports/figures/story_journeys.png)
 
-**How good are the predictions?** Predicting how late a train will be at its next
+How good are the predictions? Predicting how late a train will be at its next
 stop, the model is off by 16 seconds on average. The best rule of thumb, "it stays
 as late as it is", is off by 49.
 
 ![Average prediction error of the model and three rules of thumb](reports/figures/story_prediction_error.png)
 
-**Does it hold up in a snowstorm?** Day by day through February 2026: even on the
+Does it hold up in a snowstorm? Day by day through February 2026: even on the
 23 February storm, the model stayed about half as far off as the rule of thumb.
 
 ![Daily snowfall and daily prediction error in February 2026](reports/figures/story_winter.png)
 
-**And all of it in one app, on a 3D map.** [`map/`](map/README.md) is the
+And all of it in one app, on a 3D map. [`map/`](map/README.md) is the
 project's interface: the network in 3D, with a panel docked beside it for each
-view, sized to what the view is for. It opens on the **Story**: the project's
+view, sized to what the view is for. It opens on the Story: the project's
 findings as short chapters in plain words, each with one number and one chart,
 while the map beside it changes to show each chapter as you scroll (the stations,
-a day's trains, where time is lost). **Network** stands each station up as a column: its height is the late
+a day's trains, where time is lost). Network stands each station up as a column: its height is the late
 share, bad-day delay or daily entries, and its colour is its reliability cluster.
-**Replay** plays back real service days train by train (a spring weekday, the 23
+Replay plays back real service days train by train (a spring weekday, the 23
 February storm and a holdout day), each train coloured and raised by its
 lateness. Select a train to follow it stop by stop, with the model's forecast for
 each stop against what happened. The MBTA's own alerts for that day (a disabled
 train, shuttle buses, a signal problem) are marked on the timeline, listed while
 they are in effect, and ring the stations they name, so you can watch the delays
-that follow. **Time lost** colours every stretch of track by the time trains lose
+that follow. Time lost colours every stretch of track by the time trains lose
 moving there and raises a column at every station for the time they lose standing,
-per train or per day, with what winter makes worse. **Results** holds the charts
+per train or per day, with what winter makes worse. Results holds the charts
 above and more, for spring, winter and the holdout; hovering a line in a chart
-brings it forward on the map. **Stations** is every station in a sortable table.
+brings it forward on the map. Stations is every station in a sortable table.
 Run it with `make map` (needs Node.js).
 
 ![The Story: the findings chapter by chapter, the map following along](map/docs/story.png)
@@ -127,8 +136,8 @@ Run it with `make map` (needs Node.js).
 
 ## 1. How to build and run the code
 
-Requires **Python 3.11, 3.12 or 3.13** (the pinned wheels stop at 3.13; `make setup`
-checks), about **8 GB of RAM** (training peaks near 6 GB) and ~3 GB of disk. Nothing
+Requires Python 3.11, 3.12 or 3.13 (the pinned wheels stop at 3.13; `make setup`
+checks), about 8 GB of RAM (training peaks near 6 GB) and ~3 GB of disk. Nothing
 else — no API key, no manual downloads. Every data source is public or keyless.
 
 Use a fresh virtual environment so the pinned versions don't clash with anything
@@ -140,12 +149,12 @@ source .venv/bin/activate      # Windows: .venv\Scripts\activate
 make all          # install, fetch data, validate, train, cluster, plot, write the report
 ```
 
-**The analysis window is pinned** to 2026-04-02 → 2026-06-30 (`END=2026-06-30`), so a
+The analysis window is pinned to 2026-04-02 → 2026-06-30 (`END=2026-06-30`), so a
 run on any machine, on any later date, studies the same 90 days. `make END=latest all`
 follows the newest data every source covers instead.
 
 That is the whole thing. It runs the stages below in order, and when it finishes
-**open `reports/report.html`**: every result on one page, readable offline in any
+open `reports/report.html`: every result on one page, readable offline in any
 browser, with every table also saved as CSV in `reports/tables/`. Allow tens of
 minutes per period for a full run; runtime depends on the CPU and other workloads.
 The main-window download is about 400 MB. Individual stages:
@@ -164,13 +173,13 @@ make map          # export the map data and open the 3D map (needs Node.js)
 make test         # run the test suite (260 tests, no network required)
 ```
 
-**Reproducing the exact numbers on another computer.** `make setup` installs
+Reproducing the exact numbers on another computer. `make setup` installs
 `requirements-lock.txt`: every package, including transitive ones, at the exact
 version these results were produced with. `requirements.txt` holds the compatible
 ranges for development. Rebuilding from the same downloaded data with the pinned
 versions was checked to give byte-identical results (§12).
 
-**The winter comparison.** `reports/story.html` shows winter beside spring when the
+The winter comparison. `reports/story.html` shows winter beside spring when the
 winter run exists, so build it first to reproduce the published page (it takes the
 same time again):
 
@@ -187,7 +196,7 @@ make END=latest all       # follow the newest data instead of the published wind
 make RUN=holdout DAYS=89 END=2026-09-27 NO_RIDERSHIP=1 all   # the July–September holdout (§7)
 ```
 
-**Windows.** `make` is not installed on a stock Windows machine, so `make.ps1`
+Windows. `make` is not installed on a stock Windows machine, so `make.ps1`
 exposes the same targets:
 
 ```powershell
@@ -223,7 +232,7 @@ bulk downloads. Raise verbosity or dial the interval with `Progress(log_every=..
 
 ### Environment and API key
 
-The project runs with **no API key at all**. The bulk historical data is public,
+The project runs with no API key at all. The bulk historical data is public,
 and the live collector stays under the anonymous rate limit (3 requests/minute
 against a 20/minute allowance).
 
@@ -260,20 +269,20 @@ cp .env.example .env      # then put your key in MBTA_API_KEY
 
 Stated so they can be measured:
 
-1. **Predict subway arrival delay** at a given stop to within a mean absolute
+1. Predict subway arrival delay at a given stop to within a mean absolute
    error materially below the delay-persistence baseline, evaluated on a future
    time period never seen in training.
-2. **Classify rider lateness** (>5 minutes longer wait than planned) with F1 and ROC-AUC above
+2. Classify rider lateness (>5 minutes longer wait than planned) with F1 and ROC-AUC above
    that same baseline.
-3. **Quantify which data sources actually help**, by ablating feature groups
+3. Quantify which data sources actually help, by ablating feature groups
    rather than asserting their value.
-4. **Cluster the 125 subway stations** into interpretable reliability and demand
+4. Cluster the 125 subway stations into interpretable reliability and demand
    types, and test whether the two typologies are related.
 
-All four are met, and the fourth produces a **null result that is reported as
-such** (§8). A fifth question was added once they were answered:
+All four are met, and the fourth produces a null result that is reported as
+such (§8). A fifth question was added once they were answered:
 
-5. **Find where the network loses time**, moving or standing, and whether those
+5. Find where the network loses time, moving or standing, and whether those
    places change with the season (§8, *Where the T loses time*).
 
 ---
@@ -291,7 +300,7 @@ development; nothing is assumed to exist.
 | 4 | **Open-Meteo historical archive** | Hourly temperature, precipitation, snowfall, wind, humidity for Boston. | `archive-api.open-meteo.com` — keyless |
 | 5 | **LAMP alerts archive** | Archived GTFS-Realtime alerts with `cause`, `effect`, `severity`, text, and affected route/stop. | `performancedata.mbta.com` — public |
 
-**Why LAMP rather than the live API for training?** The V3 API is a *snapshot*: it
+Why LAMP rather than the live API for training? The V3 API is a *snapshot*: it
 tells you where trains are now, not how late they were on 400 previous days. The
 LAMP archive is the retrospective record, and pairing observed against scheduled
 times is what makes delay a *label* rather than an inference. The live API is still
@@ -299,14 +308,14 @@ used, for two things it alone can do: station coordinates, and the live collecto
 
 ### Two coverage traps, both handled in code
 
-* **The ridership service is shorter than the performance archive.** Probing it
+* The ridership service is shorter than the performance archive. Probing it
   showed coverage ending 2026-06-30 while LAMP ran to 2026-09-27. Rather than
   hard-code dates, `collect_ridership.coverage()` queries the live bounds and the
-  collection stage intersects all sources into **one shared window**, persisted to
+  collection stage intersects all sources into one shared window, persisted to
   `data/analysis_window.json`. Every later stage reads that file, so no stage can
   silently disagree about which dates are under analysis. This window is
-  **2026-04-02 → 2026-06-30 (90 service days)**.
-* **56 of 125 stations have no gated entries at all.** Green Line surface stops
+  2026-04-02 → 2026-06-30 (90 service days).
+* 56 of 125 stations have no gated entries at all. Green Line surface stops
   west of Kenmore and parts of the Green Line Extension have no faregates. That
   absence is informative, so it is flagged (`demand_missing`) rather than imputed
   to zero.
@@ -365,7 +374,9 @@ project's timestamps (§5). None of it is redistributed here.
 
 ```
 .
-├── README.md                  ← this document (the final report)
+├── README.md                  ← the one-page summary
+├── REPORT.md                  ← this report
+├── LICENSE                    ← MIT, for the code (not the data)
 ├── makefile                   ← required build entry point
 ├── make.ps1                   ← Windows equivalent (no `make` needed)
 ├── requirements.txt           ← compatible version ranges
@@ -410,14 +421,14 @@ project's timestamps (§5). None of it is redistributed here.
 
 ## 5. Data cleaning
 
-Delay is computed as **observed stop time − scheduled arrival time**, anchored the
-way GTFS defines its times, at **noon minus 12 hours** of the service date:
+Delay is computed as observed stop time − scheduled arrival time, anchored the
+way GTFS defines its times, at noon minus 12 hours of the service date:
 
 ```
 delay_seconds = stop_timestamp − (noon_local(service_date) − 12 h + scheduled_arrival_time)
 ```
 
-**The timetable is coarse.** Every scheduled time in the spring window (all
+The timetable is coarse. Every scheduled time in the spring window (all
 3,231,016 rows) falls on a whole minute, and the scheduled arrival always equals
 the scheduled departure: there is no planned stop time. So each "delay" carries up
 to ±30 s of rounding, and time spent at the platform is folded into the plan's running
@@ -443,7 +454,7 @@ Every rule came from inspecting real data, not from assumption:
 **1. Exclude `ADDED-*` and `NONREV-*` trips — 652,192 rows (16.7%).**
 `trip_id` has three namespaces. Regular numeric trips have a textbook delay
 distribution. `ADDED-*` trips are created at runtime and `NONREV-*` trips are
-non-revenue moves; **neither has a meaningful entry in the published schedule**, so
+non-revenue moves; neither has a meaningful entry in the published schedule, so
 their apparent "delay" is an artefact of a bad match:
 
 | namespace | rows | median delay | mean delay |
@@ -456,32 +467,32 @@ They are excluded not because they are outliers but because the quantity being
 predicted is *undefined* for them. Keeping them would have dragged mean delay to
 −2,001 s and made 13% of rows look absurd.
 
-**2. Drop rows missing an observation or a schedule — 11,837 rows (0.30%).**
+2. Drop rows missing an observation or a schedule — 11,837 rows (0.30%).
 A delay needs both sides of the subtraction.
 
-**3. De-duplicate on `(service_date, trip_id, stop_id)` — 3,028 rows (0.08%).**
-Critically, the key **includes `service_date`**: `trip_id` is reused across days
+3. De-duplicate on `(service_date, trip_id, stop_id)` — 3,028 rows (0.08%).
+Critically, the key includes `service_date`: `trip_id` is reused across days
 (2,123 of 13,305 trip ids appear on more than one date), so grouping on `trip_id`
 alone silently mixes days. An early version of this analysis did exactly that and
 produced nonsense lag features — see the tests in `test_features.py` that now pin
 the behaviour down.
 
-**4. Flag, do not delete, implausible values.** Delays beyond ±1 hour (0.29% of
+4. Flag, do not delete, implausible values. Delays beyond ±1 hour (0.29% of
 rows) and dwell times beyond 30 minutes are flagged (`delay_outlier`,
 `dwell_implausible`) rather than dropped, so the report can quantify the tail the
 models are fighting instead of hiding it. Dwell outliers are set to null.
 
-**5. Resolve station names.** The LAMP data dictionary says `parent_station` holds
-a stop *name*; it actually holds a stop **id** (e.g. `place-alfcl`). Names are
+5. Resolve station names. The LAMP data dictionary says `parent_station` holds
+a stop *name*; it actually holds a stop id (e.g. `place-alfcl`). Names are
 joined from the static stops table. That table carries every schedule version since
-2019 (750 of them), and stations get renamed, so the **latest** version's name is
+2019 (750 of them), and stations get renamed, so the latest version's name is
 used. Taking the first row per id, as an earlier version did, produced 2019 names
 ("Packards Corner", "Science Park") that no longer match the V3 API, and silently
 dropped three stations from the map.
 
-**6. Order each trip by scheduled time, not `stop_sequence` — 3,830 trips reordered.**
+6. Order each trip by scheduled time, not `stop_sequence` — 3,830 trips reordered.
 `stop_sequence` is not a reliable order. On 3,830 trips (2%), mostly Green-E into
-Heath Street, the trip's **final** stop is labelled `stop_sequence == 1`. Sorting by
+Heath Street, the trip's final stop is labelled `stop_sequence == 1`. Sorting by
 it put the end of the trip first, so the next stop's "previous delay" was really
 the delay at the *end* of the trip — information from the future. The scheduled
 arrival time is monotone by construction, and ordering by it removes every
@@ -489,11 +500,11 @@ schedule inversion (3,907 → 0) and 65% of the apparent time-travel (5,703 → 
 The stop numbers also step by 10 on most lines (up to 710 on a 32-stop trip), which
 had made `fraction_through_trip` range up to 670 instead of 0–1.
 
-**7. Keep one row per scheduled visit — 483 rows.** At Kenmore, Ashmont and
+7. Keep one row per scheduled visit — 483 rows. At Kenmore, Ashmont and
 Mattapan, one arrival is sometimes recorded under two platform ids. The second copy
 became its own "previous stop", handing the model the answer.
 
-**8. Drop whole trips running more than 30 minutes early — 6,361 rows.**
+8. Drop whole trips running more than 30 minutes early — 6,361 rows.
 Some trips sit at a steady offset of about an hour *ahead* of schedule at every
 stop (one Green-D trip: −4,051 s at Kenmore, −4,141 s at Riverside, varying by
 under a minute). On a line where trains cannot overtake, a trip 30 minutes early
@@ -504,14 +515,14 @@ where departures are not held to the clock (§8). Very *late* trips are kept too
 on known disruption days, and a late train does not need to overtake anything.
 The rule runs after rule 11, so a trip's median is judged on its real stops.
 
-**9. Flag arrivals timestamped before the previous stop — 1,358 rows (0.04%).**
+9. Flag arrivals timestamped before the previous stop — 1,358 rows (0.04%).
 A train cannot reach stop *k*+1 before stop *k*. These rows (`time_inconsistent`)
 stay in the table but are not used as delays.
 
-**10. Split trips where the train changes, and don't score each train's first stop
-— 188,127 rows.** Trains reach the origin platform and wait: the median "delay"
-there is **−190 s**, 15% of origins look more than 10 minutes early, and the model's
-error on them was **307 s** (6% of test rows, 35% of all error). On 300 Green Line
+10. Split trips where the train changes, and don't score each train's first stop
+— 188,127 rows. Trains reach the origin platform and wait: the median "delay"
+there is −190 s, 15% of origins look more than 10 minutes early, and the model's
+error on them was 307 s (6% of test rows, 35% of all error). On 300 Green Line
 trips, a *different vehicle* finishes the trip (the record switches trains at, say,
 Copley). The delay jumps a median 68 s at that hand-over, against 24 s between
 ordinary stops, so each vehicle's stretch is its own "run" and lag features never
@@ -522,8 +533,8 @@ terminals look punctual (§8). (A further 1,328 trips change their recorded
 `stop_count` partway through with the *same* train; that is bookkeeping in the
 source, the delays run on smoothly, and those trips are left whole.)
 
-**11. Drop isolated stops more than 30 minutes off both neighbours — 1,270 rows
-(0.04%).** A real hold-up raises a train's delay and it *stays* raised at the next
+11. Drop isolated stops more than 30 minutes off both neighbours — 1,270 rows
+(0.04%). A real hold-up raises a train's delay and it *stays* raised at the next
 stop (1,539 such steps in spring). A stop more than 30 minutes away from both
 neighbouring stops of its run, while those neighbours agree to within 10 minutes,
 is a bad record instead: on 5 September a Red Line train was logged 3.4 hours early
@@ -547,13 +558,13 @@ Timetable-delay statistics describe genuine arrivals (rules 9 and 10 excluded).
 | Share more than 5 min behind the timetable | 21.4% |
 | Flagged as outliers (beyond ±1 h) | 0.23% |
 
-*(`extras` stage.)* **Every derived value was re-derived independently** on 2,000
+*(`extras` stage.)* Every derived value was re-derived independently on 2,000
 random feature rows, using different code: delay from the raw timestamp with
 Python's own `zoneinfo` and the GTFS anchor, the previous-stop delay by walking
 each run in scheduled order, and the weather looked up by hand for the prediction
 hour. All 2,000 match exactly on all three, in both seasons.
 
-**Where values are missing, and why.** The gaps in the arrival table are
+Where values are missing, and why. The gaps in the arrival table are
 structural, not errors. Branch headways are missing only on lines with no
 branches (100% on Blue, Orange and Mattapan; under 1% elsewhere). Dwell time is
 missing at the trip origin (99.8%), where there is no previous dwell. In the
@@ -578,19 +589,19 @@ matched to the wrong timetable, recorded travel time equal to arrival minus
 departure (100% of rows), weather hourly with no gaps, humidity within 0–100%, no
 target column among the features, no isolated off-trip stop left. All checks pass.
 One *informational* check counts route-days running below 60% of their usual
-volume: **79**. Those are planned shutdowns, visible in the data — the whole Green
+volume: 79. Those are planned shutdowns, visible in the data — the whole Green
 Line on 30 May–5 June, Green-C on 6–17 May, and the Red Line at 5–20% of normal on
 several weekends. They are real service changes, not errors, so they are reported
 rather than removed.
 
-**Independent cross-check against TransitMatters.** TransitMatters derives travel
+Independent cross-check against TransitMatters. TransitMatters derives travel
 times from the same MBTA archive with its own code. `python -m mbta_ds.cli
 crosscheck` (optional; it calls their web API, so it is not in `make all`) takes an
 8-stop stretch of the Red, Orange and Blue lines on three test-period days and
 matches each of their trips to ours by arrival time:
 
-* **1,724 of their 1,911 trips match ours, with a median arrival-time difference of
-  0 seconds** on all nine line-days, and median end-to-end travel times within 8 s.
+* 1,724 of their 1,911 trips match ours, with a median arrival-time difference of
+  0 seconds on all nine line-days, and median end-to-end travel times within 8 s.
 * **Of the 187 that do not, 171 are `ADDED-*` trips** found in the raw archive at
   the same stop within a minute, the unscheduled service this project deliberately
   leaves out (§11). The remaining 16 (0.8%) are unexplained.
@@ -598,15 +609,15 @@ matches each of their trips to ours by arrival time:
 Loading, timezone handling and cleaning therefore reproduce an independent
 pipeline's timestamps exactly.
 
-**What the checks caught on the winter window.** Re-running on December–February
+What the checks caught on the winter window. Re-running on December–February
 (`make RUN=winter END=2026-02-28 all`) tripped two checks that had never fired on
 spring data. Both turned out to describe the world, not a bug, and are now reported
 rather than blocking the build:
 
-* **Three service dates (4, 10 and 12 December) are empty in the MBTA's own
-  archive.** The check now separates "dates the source never had" (informational)
+* Three service dates (4, 10 and 12 December) are empty in the MBTA's own
+  archive. The check now separates "dates the source never had" (informational)
   from "dates the pipeline lost" (still a hard failure, still zero).
-* **0.66% of winter arrivals are more than an hour off schedule**, above the spring
+* 0.66% of winter arrivals are more than an hour off schedule, above the spring
   ceiling. They cluster on storm days (§7, *Winter*), so the check reports the share
   instead of failing.
 
@@ -614,28 +625,28 @@ rather than blocking the build:
 
 ## 6. Feature extraction
 
-The central discipline is **causal ordering**: a feature for the arrival at stop
+The central discipline is causal ordering: a feature for the arrival at stop
 *k* may only use information that exists before the train reaches stop *k*.
 
-* Lag features come from the **previous stops of the same trip**, in scheduled-time
+* Lag features come from the previous stops of the same trip, in scheduled-time
   order (§5 rule 6), produced with `groupby(["service_date", "trip_id"]).shift(1)` —
   never from the current or later rows, and never across a day boundary.
-* **Targets are genuine arrivals.** Trip origins and impossible timestamps (§5
+* Targets are genuine arrivals. Trip origins and impossible timestamps (§5
   rules 9–10) feed the next stop's lags but are never themselves predicted, so every
   target row has a previous-stop delay.
-* **Prediction timestamps must agree.** The source stop must have been observed
+* Prediction timestamps must agree. The source stop must have been observed
   at or before `known_at`, and `known_at` must precede the target arrival. Rows
   with contradictory timestamps are excluded after deriving lags on the full
   table, so exclusions cannot turn an earlier surviving stop into the previous
   stop. The rule applies at every prediction horizon.
-* **Optional observations must already exist.** An older delay observed after
+* Optional observations must already exist. An older delay observed after
   `known_at`, or a dwell that ends later, is masked. Departure headways and the
   lateness derived from them are masked when departure is unknown or its dwell
   is unfinished. A missing departure timestamp still falls back to the source
   arrival, where arrival-based information remains usable.
-* Demand is joined from a **lagged 7-day rolling window** over *calendar* days,
+* Demand is joined from a lagged 7-day rolling window over *calendar* days,
   never the same day's total, which is only known once the day is over.
-* **Alerts count only from the first full hour after they are known**, and are
+* Alerts count only from the first full hour after they are known, and are
   matched to the hour of the *prediction moment*, not the target's scheduled hour
   (which, several stops ahead, can lie after alerts raised since). The archive's
   alerts are reactive: the median gap between creation and the start of the active
@@ -644,15 +655,15 @@ The central discipline is **causal ordering**: a feature for the arrival at stop
   Bucketing an alert into the hour it started would let one raised at 08:50 inform
   an 08:10 arrival. Elevator and escalator outages (`ACCESSIBILITY_ISSUE`, ~93% of
   subway alerts) are excluded because they say nothing about train running.
-* **No target encoding is done ahead of time.** Categorical identifiers reach the
+* No target encoding is done ahead of time. Categorical identifiers reach the
   model as raw categories, and every imputation, scaling and encoding step lives
   inside a scikit-learn `Pipeline` that is fit on training rows only.
-* Weather is joined on the hour of the **prediction moment** (Open-Meteo's hourly
+* Weather is joined on the hour of the prediction moment (Open-Meteo's hourly
   precipitation is the total for the hour *before* its timestamp, so nothing from
   after the prediction is used). It is still observed, reanalysed weather, a
-  **nowcast rather than a forecast**, as the limitations say.
+  nowcast rather than a forecast, as the limitations say.
 
-**Ordering bug caught during development.** The first version subsampled rows
+Ordering bug caught during development. The first version subsampled rows
 *before* computing lags. That corrupted every lag feature — `shift(1)` returned the
 previous *surviving* stop rather than the previous stop — and inflated the missing
 rate from 5.8% to 29%. The pipeline now computes row-wise features on the full clean
@@ -670,10 +681,10 @@ table and subsamples afterwards. The reason is documented in `features.build`.
 | `vehicle` | `vehicle_prev_trip_delay`, `vehicle_layover_seconds` (how the same train finished its previous trip) |
 | `categorical` | `route_id`, `trunk_route_id`, `direction_id`, `station_name` |
 
-**The `network` group: other trains on the line.** Delay does not only travel along
+The `network` group: other trains on the line. Delay does not only travel along
 a trip; it travels down a line, because trains queue behind each other. For every
-arrival the model predicts, these features describe the line **as it stood at the
-moment of prediction** — when the train left its previous stop — and nothing later:
+arrival the model predicts, these features describe the line as it stood at the
+moment of prediction — when the train left its previous stop — and nothing later:
 the delay of the last train to reach the target station and how long ago it did,
 and the share of the line's arrivals in the previous 15 minutes that were more than
 5 minutes late. Branches that share track count as one line (every Green train
@@ -681,7 +692,7 @@ queues at Park Street). The lookups are `merge_asof` joins that only look strict
 backwards in time, and the tests pin down that a train arriving *after* the
 prediction moment is never used.
 
-**Prediction horizon.** `features.build(horizon=k)` builds the same table for
+Prediction horizon. `features.build(horizon=k)` builds the same table for
 predicting delay *k* stops ahead: every `prev_*` feature then describes the stop *k*
 back, `scheduled_seconds_ahead` is the scheduled time still to run, and the network
 features are taken at the moment the train left that stop. §7 uses this to ask how
@@ -691,10 +702,10 @@ Groups are declared in code (`features.FEATURE_GROUPS`) so the trainer can ablat
 them declaratively, and the build fails loudly if a declared feature is ever not
 produced — a guard added after `scheduled_headway_trunk` was silently missing from
 the download list. `days_since_window_start` is still built, but only for the
-diagnostic in §7. It is deliberately **not** a model feature, for the reason §7
+diagnostic in §7. It is deliberately not a model feature, for the reason §7
 explains.
 
-**Timing correction, 30 September 2026.** The final audit found source observations
+Timing correction, 30 September 2026. The final audit found source observations
 recorded after the claimed prediction moment, and predictions made at or after
 arrival. The timing guard removes 3,231 spring, 2,320 winter and 3,126 summer
 prediction rows. Optional information that was not yet available is masked.
@@ -703,9 +714,9 @@ On the original spring test rows, fixing the five-minute boundary alone changes
 persistence F1 from 0.8591 to 0.8585. After the timing exclusions and masking, its
 F1 is 0.8594 on the corrected spring cohort; these are different evaluations.
 
-**Modelling matrix:** 3,038,300 rows × 41 features (37 numeric, 4 categorical) — every predictable arrival in the
+Modelling matrix: 3,038,300 rows × 41 features (37 numeric, 4 categorical) — every predictable arrival in the
 window. The trainer fits on a seeded sample of about 450,000
-earlier-period rows, **stratified by service date** so every day is represented, and
+earlier-period rows, stratified by service date so every day is represented, and
 scores on *every* later arrival. An earlier version sampled 600k rows before
 splitting, so its test set was a sample too, and results moved by a few tenths of a
 second whenever the sample was redrawn.
@@ -716,17 +727,17 @@ second whenever the sample was redrawn.
 
 ### Evaluation design
 
-* **Temporal split, never random.** Train on the earlier 75% of *service dates*,
+* Temporal split, never random. Train on the earlier 75% of *service dates*,
   test on the later 25%. A random row split would put some stops of a trip in train
   and others in test, leaking that trip's own delay path across the boundary. It
   also matches the question a rider asks: given what happened up to yesterday, what
   happens tomorrow?
-* **Every test arrival is scored.** Training uses a date-stratified sample; the test
+* Every test arrival is scored. Training uses a date-stratified sample; the test
   set is never sampled.
-* **Three baselines always reported**, including **delay persistence** — just
+* Three baselines always reported, including delay persistence — just
   predict the previous stop's delay. Beating persistence is the real bar here, and
   it is not automatic.
-* **Several test periods, not one** (the walk-forward backtest below), so a result
+* Several test periods, not one (the walk-forward backtest below), so a result
   cannot hinge on which weeks happened to be held out.
 
 | | |
@@ -735,7 +746,7 @@ second whenever the sample was redrawn.
 | Train | 450,001 rows sampled from 2026-04-02 → 2026-06-07 |
 | Test | **all 870,359 eligible arrivals**, 2026-06-08 → 2026-06-30 |
 
-Boosted models stop early on the **latest 10% of their training days**, not a random
+Boosted models stop early on the latest 10% of their training days, not a random
 10% of rows. A random split puts stops of one trip on both sides and flatters the
 validation loss (§7, *time trend*, shows what that hid).
 
@@ -754,15 +765,15 @@ validation loss (§7, *time trend*, shows what that hid).
 | *Baseline: route × hour mean* | *274.7* | *466.1* | *0.082* | *−24.4* |
 | *Baseline: predict on time* | *285.7* | *507.6* | *−0.088* | *−144.3* |
 
-The headline model is **fixed in advance** (`model_delay.HEADLINE_REGRESSOR`), not
+The headline model is fixed in advance (`model_delay.HEADLINE_REGRESSOR`), not
 chosen as whichever candidate scores best on the test period, which would make its
 test score an optimistic, selected estimate. Every candidate is still reported.
 
-**Goal 1 met against persistence (16.1 s vs 48.9 s), but not against the
-run-time baseline (14.0 s).** The two naïve baselines are *actively harmful*
+Goal 1 met against persistence (16.1 s vs 48.9 s), but not against the
+run-time baseline (14.0 s). The two naïve baselines are *actively harmful*
 (R² ≈ 0): subway delay is not explained by route and hour at all.
 
-**The baseline persistence leaves out.** The prediction is made when the train
+The baseline persistence leaves out. The prediction is made when the train
 leaves its previous stop, and the model is told how long it dwelt there, so it
 effectively knows the departure time. What remains unknown is one stretch of
 running time (a median of about 70 s). Persistence ignores the departure, and it
@@ -777,18 +788,18 @@ when the train left it (`error_analysis.by_run_start` in `model_metrics.json`).
 The lookup is now a standing baseline, reported by `make all` in the backtest
 and horizon tables too.
 
-**Correcting the lookup instead of persistence.** `hist_gradient_boosting_run_time`
+Correcting the lookup instead of persistence. `hist_gradient_boosting_run_time`
 (`model_delay.RunTimeChangeRegressor`) starts from the lookup and learns only the
 correction, with the lookup as an extra input. The lookup's training values are
 cross-fitted by service date, so the correction never learns from medians that
-already contain its answers. On the spring split it scores **12.4 s**, beating
+already contain its answers. On the spring split it scores 12.4 s, beating
 the lookup at a run's second stop (16.0 s against 17.1 s) and on later stops
 (12.2 s against 13.8 s). It is reported as a candidate, not made the headline:
 it was designed after seeing these test scores, and the July–September holdout
 has already been used once (§7, *Holdout*). Promoting it needs a period neither
 has seen, such as October 2026 (§14).
 
-**Predict the change, not the level.** The headline model is the absolute-error
+Predict the change, not the level. The headline model is the absolute-error
 boosted model below with one change: its target is the delay *gained since the last
 stop* (`delay − prev_delay_1`), and the previous stop's delay is added back to its
 prediction (`model_delay.ChangeRegressor`). Same features, same learner, 22.4 s →
@@ -799,7 +810,7 @@ And a tree can never output a value outside the range it was trained on. That co
 little in spring but broke the model in winter (§7, *Winter*), where it could not
 follow trains logged hours behind the timetable.
 
-**Train on the metric you are scored on.** The same boosted model drops from 30.1 s
+Train on the metric you are scored on. The same boosted model drops from 30.1 s
 to 22.4 s simply by minimising absolute rather than squared error. Squared error
 chases the rare 30-minute meltdowns at the expense of the typical arrival. The
 decision tree, which fits large delays more closely, has a far lower RMSE than
@@ -807,7 +818,7 @@ either level model. The absolute-error models have a negative bias because they
 predict the typical (median) arrival rather than the mean, which the long right
 tail pulls upwards.
 
-**History: these numbers are not comparable with earlier versions of this report**
+History: these numbers are not comparable with earlier versions of this report
 (51.1 s vs 73.5 s), because the test set changed, each time by removing rows whose
 "delay" was not a real delay, and finally by scoring every test arrival instead of
 a sample. Measured step by step on the versions of the time:
@@ -829,12 +840,12 @@ a sample. Measured step by step on the versions of the time:
 Overfitting means learning the training days by heart instead of how trains
 behave, so the model does well on data it has seen and badly on data it has not.
 Four checks support its performance on later days:
-* **The test weeks always come after the training weeks** (§7, *Evaluation design*), so no
+* The test weeks always come after the training weeks (§7, *Evaluation design*), so no
   test day, and no stop of a test-day trip, is ever seen in training.
-* **Four separate test fortnights agree** within 2.4 s (the backtest below), and
+* Four separate test fortnights agree within 2.4 s (the backtest below), and
   so do the winter fortnights, storms included.
-* **Each season's model works on the other** (§7, *Winter*), losing at most 1.4 s.
-* **A later period agrees**: July–September, first run after the design was
+* Each season's model works on the other (§7, *Winter*), losing at most 1.4 s.
+* A later period agrees: July–September, first run after the design was
   frozen (§7, *Holdout*). That period was reused after cleaning and timing fixes,
   so the corrected scores are no longer a fully untouched check.
 
@@ -854,7 +865,7 @@ refit alongside it, and so are the running-time lookup and the model correcting 
 | 3 Jun – 16 Jun | 62 | 440,335 | 49.9 | 25.4 | 17.1 | 66% | 14.1 | 12.7 |
 | 17 Jun – 30 Jun | 76 | 535,971 | 48.4 | 21.4 | 15.4 | 68% | 13.5 | 12.1 |
 
-**The improvement is steady at 66–70% in every window**, including the first, trained
+The improvement is steady at 66–70% in every window, including the first, trained
 on only 34 days. The headline is not the product of one convenient test period.
 The lookup beats the change model in all four windows, and the model correcting
 the lookup beats both in all four, by 1.1–1.5 s over the lookup.
@@ -882,10 +893,10 @@ Persistence errs by 34.5, 62.6, 84.4 and 156.2 s and the model by 14.9, 43.0, 65
 and 114.8 s: 57%, 31%, 23% and 27% better. These are overlapping comparisons,
 rather than four scores on an identical set of arrivals.
 
-Two results. **The model stays well ahead of persistence at every horizon**:
+Two results. The model stays well ahead of persistence at every horizon:
 predicting a train's delay ten stops out, it is wrong by about two minutes, where
-"same as now" is wrong by over two and a half. And **the other trains on the line
-help only a little**: under a second at every horizon, falling to about a tenth
+"same as now" is wrong by over two and a half. And the other trains on the line
+help only a little: under a second at every horizon, falling to about a tenth
 of a second at ten stops. What the train ahead did is already mostly
 reflected in your own train's recent delay, because the two are held up by the same
 things.
@@ -896,7 +907,7 @@ The delay model predicts the *typical* outcome, which is exactly what fails on b
 days. `model_tail.py` (stage `tail`) asks the two questions a rider has when things
 go wrong, 1 and 5 stops before the train reaches their station.
 
-**Early warning: the probability riders wait 10+ minutes longer than planned.**
+Early warning: the probability riders wait 10+ minutes longer than planned.
 "Late" is measured by the gap behind the train in front (`clean.lateness`, §5).
 About 3% of test arrivals are, one stop ahead. PR-AUC measures how well a method
 ranks those trains above the rest (1 is perfect; a random guess scores the share
@@ -911,15 +922,15 @@ alarms correct.
 | 5 | **onsets** (5,909) | 0.132 | 0.015 | 0.013 | 5.7% |
 
 Many trains that will be 10+ minutes late *already are*, and "how late it is now"
-catches most of them. The honest test is **onsets**, trains under 5 minutes late at
+catches most of them. The honest test is onsets, trains under 5 minutes late at
 prediction time that end up 10+ minutes late: 0.5% of on-time trains one stop ahead,
 1.0% five stops ahead. The model ranks them far better than chance (PR-AUC 0.30
 against a base rate of 0.005) and far better than either baseline. One stop ahead it
-**catches 27% of onsets while keeping half its alarms correct**; five stops ahead,
+catches 27% of onsets while keeping half its alarms correct; five stops ahead,
 6%. In winter the same numbers are 32% and 8%, and on the July–September holdout
 23% and 6%.
 
-**Averaging three seeds helps a little.** Each seed alone scores a one-stop onset
+Averaging three seeds helps a little. Each seed alone scores a one-stop onset
 PR-AUC of 0.28–0.30 and catches 25–26% of onsets; the average of three seeds (0.305,
 26.8%) is above that range. Two ideas for targeting onsets directly do
 *worse*: training only on trains that are on time now (PR-AUC 0.239) and targeting
@@ -927,15 +938,15 @@ PR-AUC of 0.28–0.30 and catches 25–26% of onsets; the average of three seeds
 `reports/tables/early_warning.csv`. Sudden disruptions remain mostly unpredictable
 from this data; live incident reports or crowding would be needed (§14).
 
-**The spring probabilities are close to observed frequencies**
+The spring probabilities are close to observed frequencies
 (`reports/figures/calibration.png`): of trains given a 14% chance, 14–15% were
 10+ minutes late; of those given about 50%, 50–51% were. A live app would need to
 check this agreement again on its own data before showing these probabilities.
 
-**Ranges: a 10th–90th percentile band** for the timetable delay, from three
+Ranges: a 10th–90th percentile band for the timetable delay, from three
 quantile-regression models, also predicting the change since the last stop. The
 models are fitted on the earlier 80% of training days, and the band is then widened
-by **split-conformal calibration** on the latest 20% (`model_tail.conformal_margin`):
+by split-conformal calibration on the latest 20% (`model_tail.conformal_margin`):
 by however much the truth fell outside the band on those days, at the level needed
 for 80% coverage.
 
@@ -964,11 +975,11 @@ target.
 | *Baseline: route × hour rate* | *0.000* | 0.000 | 0.000 | 0.636 | 0.154 | 0.891 |
 | *Baseline: always on time* | *0.000* | 0.000 | 0.000 | 0.500 | 0.109 | 0.891 |
 
-**Goal 2 met, modestly.** "Late" here means riders wait more than 5 minutes
+Goal 2 met, modestly. "Late" here means riders wait more than 5 minutes
 longer than planned for the train (`clean.lateness`, §5), not 5 minutes behind the
-timetable. The base rate is **10.9%**, so accuracy alone is uninformative: the
+timetable. The base rate is 10.9%, so accuracy alone is uninformative: the
 "always on time" baseline scores 89.1% accuracy and 0.0 F1. PR-AUC is the
-metric that matters at this base rate, and the model reaches **0.925** against
+metric that matters at this base rate, and the model reaches 0.925 against
 a 0.109 floor. But persistence alone already reaches F1 0.859, so the learned
 classifier's lift (to 0.874) is real but small: whether a train is late is mostly
 decided by whether it already was. In an earlier evaluation judged by the timetable,
@@ -981,7 +992,7 @@ stop and so is easy to predict.
 Test MAE as feature groups are added cumulatively. The probe is a smaller version of
 the headline change model, fixed so every feature set is judged by the same learner.
 Until propagation is added there is no previous delay to add back, so it predicts
-the delay itself. Each row is the **mean of three seeds**.
+the delay itself. Each row is the mean of three seeds.
 
 | Feature set | n | Spring MAE (s) | Δ | Winter MAE (s) | Δ |
 |---|---|---|---|---|---|
@@ -995,13 +1006,13 @@ the delay itself. Each row is the **mean of three seeds**.
 | + other trains | 39 | 17.7 | −0.2 | 18.8 | −0.3 |
 | + same train's last trip | 41 | 17.6 | −0.1 | 18.8 | −0.0 |
 
-Seed spread is 0.05–0.73 s per row. **Only delay propagation's effect is large.**
+Seed spread is 0.05–0.73 s per row. Only delay propagation's effect is large.
 Other trains reduce error by 0.2–0.3 s; the remaining groups each change it by less
 than 0.1 s, within the spread between seeds.
 
-**Goal 3 met, and it produced four findings worth reporting.**
+Goal 3 met, and it produced four findings worth reporting.
 
-**Delay propagation is essentially the whole model.** Everything before it is
+Delay propagation is essentially the whole model. Everything before it is
 worth about 252 s; adding it drops MAE to 17.7 s. Permutation importance agrees
 decisively:
 
@@ -1013,25 +1024,25 @@ decisively:
 | `scheduled_seconds_ahead` | +6 s | +18 s |
 
 One feature is an order of magnitude more important than any other. This is a
-**true but unglamorous** result, and the honest conclusion is that the interesting
+true but unglamorous result, and the honest conclusion is that the interesting
 modelling problem is not "what causes delay" but "how does delay propagate through
 a trip" (§8 shows why: delay barely changes from stop to stop).
 
-**Weather is worth nothing, even with snow.** With an earlier squared-error probe
+Weather is worth nothing, even with snow. With an earlier squared-error probe
 weather seemed to gain 1.5–3.6 s. With the change model it raises spring error by
 0.1 s and changes winter error by less than 0.1 s, despite two major storms.
 Storms hurt through what they do to the
 service, which the train's own recent delay already shows.
 
-**Alerts: from harmful to neutral once made causal.** An earlier version joined each
+Alerts: from harmful to neutral once made causal. An earlier version joined each
 alert to the hour it *started* in, and counted elevator outages; adding it made test
 MAE *worse* by 3.8 s. Counted only once known and matched to the prediction moment
 (§6), the effect is 0.0 s. No effect, and no longer a leak.
 
-**A time index whose damage depended on the validation split.** An earlier version
+A time index whose damage depended on the validation split. An earlier version
 of the calendar group included `days_since_window_start`, a monotone index of the
 analysis window. Under a temporal split its training values span [0, 66] and its
-test values [67, 89], so the two ranges **share no values whatsoever**, and a tree
+test values [67, 89], so the two ranges share no values whatsoever, and a tree
 splitting on it extrapolates off the end of its training data. It is not a model
 feature; `model_delay.run_calendar_diagnostic` re-adds it to measure the effect:
 
@@ -1050,8 +1061,8 @@ seeds: the validation rows came from inside the training window, so nothing in
 training exposed the extrapolation. With early stopping on the *latest* training
 days, the validation set sits past the training range too, and the damage in spring
 falls to 4.6 s. It is not gone: in winter the trend still costs 40 s (11%), with a
-5.3 s seed spread. Two lessons. **Any monotone time index is dangerous under a
-temporal split**, and **validation must be temporal too**, or it cannot see the
+5.3 s seed spread. Two lessons. Any monotone time index is dangerous under a
+temporal split, and validation must be temporal too, or it cannot see the
 failure. With delay propagation present the trend is harmless in both seasons.
 
 ### Do alerts help if they are read properly?
@@ -1075,7 +1086,7 @@ later revision. On the spring test period:
 | Early warning, onsets 1 stop ahead (PR-AUC) | 0.305 | 0.304 |
 | Early warning, onsets 5 stops ahead (PR-AUC) | 0.132 | 0.134 |
 
-**They add little.** The delay models improve by only 0.02–0.03 s, and onset PR-AUC
+They add little. The delay models improve by only 0.02–0.03 s, and onset PR-AUC
 changes by about 0.002 in either direction. The reason is timing. Only 10% of
 one-stop onsets and 11% of five-stop onsets happen while an alert is posted: most disruptions are
 short, over before an alert goes up, or never get one. While an alert is up, a
@@ -1098,7 +1109,7 @@ matters is the trains, not the text written about them.
 | Mattapan | 12.7 | 3.6 |  |  |  |  |  |  |
 | Orange | 5.9 | 1.0 |  |  |  |  |  |  |
 
-**Normal days and bad days.** A route-day counts as *disrupted* when at least 20% of
+Normal days and bad days. A route-day counts as *disrupted* when at least 20% of
 its arrivals leave riders waiting more than 10 minutes longer than planned, measured
 by the gap behind the previous train (§5). The label is computed from the outcome,
 so it describes where the error is, not something known at prediction time.
@@ -1113,7 +1124,7 @@ on normal days. They account for only 0.6% of these test arrivals, so the overal
 mean mostly describes normal service. Earlier comparisons using timetable offsets
 to label disrupted days are not directly comparable with this rider-waiting definition.
 
-**The Blue Line went from hardest to among the easiest** (53.4 s in an earlier
+The Blue Line went from hardest to among the easiest (53.4 s in an earlier
 version → about 13 s). Its old error came from a handful of huge misses on days with
 offsets from the timetable (9, 16 and 30 June are still the absolute-target model's
 three worst test days, all on Blue; `extras`), exactly what the change target fixes.
@@ -1129,7 +1140,7 @@ The spring window has no snow, so the whole pipeline was re-run on 1 December
 `reports/winter/`). The window has two major storms, 25 January (21.6 cm) and
 23 February.
 
-**Predicting the delay itself fails on it.** Walk-forward, fortnight by fortnight,
+Predicting the delay itself fails on it. Walk-forward, fortnight by fortnight,
 with the absolute-error model predicting the delay itself refit alongside:
 
 | Test fortnight | Persistence (s) | Absolute-target model (s) | Change model (s) | Lookup (s) | Lookup + correction (s) |
@@ -1143,17 +1154,17 @@ In the storm fortnights the absolute-target model is *worse than persistence*. I
 not the weather: the ablation shows weather worth nothing in winter. On 23 February,
 its worst test day, it averages 1,004 s against persistence's 65 s (`extras`).
 
-**The worst misses are trains logged hours behind the timetable.** On 23 February,
+The worst misses are trains logged hours behind the timetable. On 23 February,
 120 Blue Line trips ran a median of 6.2 hours "late". Yet those trains ran every 15
 minutes (against 8 scheduled), with normal travel times between stops. That is
 thinned-out storm service paired with timetable slots from hours earlier, the same
 kind of pairing problem as Green-E out of Heath Street (§8), not trains stuck for
 hours. Persistence copies the offset forward and is right; the level model, which
-has never seen a delay that large, predicts a fraction of it. **Trees cannot predict
-outside their training range**: its largest prediction in the winter test period is
+has never seen a delay that large, predicts a fraction of it. Trees cannot predict
+outside their training range: its largest prediction in the winter test period is
 8,496 s, against a largest actual delay of 34,258 s.
 
-**Predicting the change since the last stop fixes it.** However large the offset,
+Predicting the change since the last stop fixes it. However large the offset,
 the change from one stop to the next stays small, so the model never leaves its
 training range. The storm fortnights drop from 102 s and 62 s to 17 s and 18 s, and
 winter as a whole lands where spring does:
@@ -1175,7 +1186,7 @@ The fix is not a patch for bad rows. Scoring only arrivals within an hour of the
 timetable, the change model still errs by 14.5–17.6 s per winter fortnight against
 persistence's 46.0–48.5 s (spring: 14.7–17.0 s against 47.9–49.7 s).
 
-*(`extras` stage.)* **One season's model works on the other.** Each season's model
+*(`extras` stage.)* One season's model works on the other. Each season's model
 was also scored on the other season's test period (categories aligned across the
 two windows):
 
@@ -1216,7 +1227,7 @@ Trained on 1 July – 4 September, tested on all 754,379 eligible arrivals of 5�
 | Baseline: departure + usual running time | 12.8 | 43.4 | — |
 | Baseline: persistence | 47.0 | 123.1 | 52.1 |
 
-**The results hold.** The headline model is 68% better than persistence, and 66–70%
+The results hold. The headline model is 68% better than persistence, and 66–70%
 in each walk-forward fortnight. Ten stops ahead it is 28% better. The lateness
 classifier reaches F1 0.8802 against persistence's 0.8635 (ROC-AUC 0.982). The early
 warning catches 23% of onsets one stop ahead and 6% five ahead, and the calibrated
@@ -1225,7 +1236,7 @@ and the model correcting it is best of all (11.5 s, and in all four fortnights).
 That model was designed after this holdout had already been run, so this is not an
 untouched test of it either.
 
-**Earlier rebuild from a fresh download.** On 30 September 2026 the whole pipeline was
+Earlier rebuild from a fresh download. On 30 September 2026 the whole pipeline was
 rebuilt from scratch on a second machine. Spring and winter reproduced every
 number exactly. The holdout moved by at most 0.1 s (the headline from 15.16 s to
 15.12 s, the candidate from 11.78 s to 11.73 s), because its July–September files
@@ -1234,7 +1245,7 @@ recent days; the cleaning ledger's row counts did not change. The timing correct
 in §6 then regenerated the models, predictions and reports on those cached archives.
 The figures above are from the corrected runs.
 
-**What the first run found, and how far to trust this one.** On the first run the
+What the first run found, and how far to trust this one. On the first run the
 change model was *not* the best model: the absolute-error model beat it by 0.4 s.
 The cause was 355 arrivals (0.05%) off by more than 30 minutes, carrying 23% of its
 absolute error. They were single-stop records hours off schedule inside otherwise
@@ -1264,19 +1275,19 @@ test period, next to the MBTA's own figures for the one full week inside it
 | 6–12 min | 86.0% | 93.5% | 95.2% | 95.5% |
 | 12–30 min | 77.1% | 92.4% | 95.1% | 95.4% |
 
-**This does not show that we beat the MBTA.** The simple lookup scores 92–95% too,
+This does not show that we beat the MBTA. The simple lookup scores 92–95% too,
 so most of the gap comes from *what is scored*, not from better modelling:
 
-* **The MBTA's clocks predict for trains that have not left yet**, including trains
+* The MBTA's clocks predict for trains that have not left yet, including trains
   waiting at a terminal, whose departure time is the hardest thing to guess. Ours
   are made only once a train has left a stop.
-* **They predict in real time**, from data a few seconds old that may be wrong or
+* They predict in real time, from data a few seconds old that may be wrong or
   late; ours are made after the fact, from data already cleaned (§5), so no
   prediction uses a bad record.
-* **They cover every train.** The unscheduled `ADDED-*` trips this project leaves
+* They cover every train. The unscheduled `ADDED-*` trips this project leaves
   out (§5) are in their figures, and so are predictions for trains that were
   later cancelled and never arrived.
-* **They are scored many times per train** (a prediction refreshes every few
+* They are scored many times per train (a prediction refreshes every few
   seconds), ours once per departure per stop, so the two samples weigh situations
   differently.
 
@@ -1293,15 +1304,15 @@ are in the right range", not as a ranking. The MBTA's file ends on 4 September
 ## 8. Track B — clustering stations
 
 Both matrices are standardised, reduced with PCA (the SVD of the centred matrix —
-the course's SVD/LSA material in practice), and clustered with **k-means++** with
-*k* chosen by silhouette across k = 2…8. Results are cross-checked against **Ward
-hierarchical**, **Gaussian mixture** and **DBSCAN**, with the agreement between
+the course's SVD/LSA material in practice), and clustered with k-means++ with
+*k* chosen by silhouette across k = 2…8. Results are cross-checked against Ward
+hierarchical, Gaussian mixture and DBSCAN, with the agreement between
 methods reported as an adjusted Rand index so the clusters are not an artefact of
 one algorithm's assumptions.
 
 ### Reliability clusters
 
-Station × hour-of-day matrix of **median** lateness (`clean.lateness`: the wait
+Station × hour-of-day matrix of median lateness (`clean.lateness`: the wait
 behind the train in front minus the planned gap, §5), plus summary reliability
 statistics. Median, not mean, so a handful of meltdowns cannot dominate a
 station's profile. PCA: 6 components capture 81.4% of variance, 49.5% in the
@@ -1316,7 +1327,7 @@ first alone.
 | Gaussian mixture ARI | 0.17 |
 | DBSCAN | 8 clusters, 25 noise points (ARI 0.50) |
 
-**The less reliable stations are mostly the Green Line's western branches**: 23 of
+The less reliable stations are mostly the Green Line's western branches: 23 of
 the 29 are B, C and D stops (Babcock Street to Washington Street, Chestnut Hill to
 Riverside). The B and C share the road with traffic and signals. The other six are
 Alewife, Braintree, Heath Street and Union Square, all at line ends, plus Lechmere
@@ -1324,7 +1335,7 @@ and Science Park/West End. At a line's last stop the source has no departure gap
 so lateness is taken from the gap between arrivals instead (`clean.extra_wait`);
 treat the line-end memberships with more caution than the branches.
 
-**It used to be different, twice.** An earlier version found a 31-station "most
+It used to be different, twice. An earlier version found a 31-station "most
 reliable" cluster that was really the trip-origin artefact (§5 rule 10): thousands
 of departure waits made terminals such as Braintree look early. With origins
 excluded but lateness still measured against the timetable, the split became 25
@@ -1333,7 +1344,7 @@ Mattapan), partly because timetable delay drifts when trains are paired with the
 wrong slot (§7). Measured by the wait behind the train in front, that drift is
 gone, and so is the "runs early" group.
 
-**Read these clusters as a description, not a discovery.** The first component
+Read these clusters as a description, not a discovery. The first component
 carries half the variance, the silhouette is modest, and the methods only partly
 agree: Ward 0.62, DBSCAN 0.50, the Gaussian mixture 0.17. There is no sharp
 natural boundary between "more" and "less" reliable; *k* = 2 cuts a continuum.
@@ -1345,7 +1356,7 @@ season is a summary of that season, not a structure of the network.
 
 ### Demand clusters
 
-Station × 48-half-hour **shape** profile from gated entries, normalised per station
+Station × 48-half-hour shape profile from gated entries, normalised per station
 so the clustering captures *when* people travel rather than how many do. PCA: 6
 components capture 87.4% of variance.
 
@@ -1357,7 +1368,7 @@ components capture 87.4% of variance.
 | Ward ARI / GMM ARI | 0.84 / 0.89 |
 | DBSCAN | **finds no clusters** (68 of 71 stations classified as noise) |
 
-**A calculation bug that halved the busiest stations.** The ridership feed splits
+A calculation bug that halved the busiest stations. The ridership feed splits
 each interchange station's entries across its lines. An earlier version *averaged*
 the halves instead of adding them, so Downtown Crossing, Park Street, South
 Station, North Station, State, Government Center and Haymarket all showed exactly
@@ -1368,24 +1379,24 @@ had taps, which overstated quiet periods by ~3% at a typical station and up to 2
 at sparse ones. Daily entries are now lines *summed*, divided by every day the
 station reported.
 
-**A data-quality exclusion, and why it was necessary.** An earlier run of this
+A data-quality exclusion, and why it was necessary. An earlier run of this
 analysis produced a third cluster containing exactly one station, whose profile
 spiked to 16.7% and back to zero six times a day. That is not a travel pattern: the
-station is **`Longwood`, which has 7 rows in the entire 90-day window — one faregate
-entry per day.** Because each profile is normalised to sum to 1, dividing by a
+station is `Longwood`, which has 7 rows in the entire 90-day window — one faregate
+entry per day. Because each profile is normalised to sum to 1, dividing by a
 near-zero total turns measurement noise into an extreme-looking shape. Stations are
 now required to have at least 24 of the 48 half-hour periods observed *and* at least
 500 total entries before their shape is clustered; every other station has 40–48
 periods, so the threshold separates cleanly. The exclusion is logged and recorded in
 `cluster_metrics.json` rather than applied silently.
 
-**DBSCAN finding no structure is itself a result.** The two clusters are a
+DBSCAN finding no structure is itself a result. The two clusters are a
 *gradient*, not separated islands — morning share varies continuously from 5% to
 51% across stations. Density-based clustering is the right tool for finding islands
 and the wrong one here, and reporting that is more informative than tuning `eps`
 until it produces an answer the data does not support.
 
-**Naming note.** Cluster names are derived, not asserted. A band is called
+Naming note. Cluster names are derived, not asserted. A band is called
 "peaked" when it carries at least 1.15× its proportional share of the *clock* — a
 comparison against band duration is what makes this fair, since the 6-hour night
 band would otherwise always look busy. Cluster names are also guaranteed unique,
@@ -1399,18 +1410,18 @@ because they are used as group keys downstream.
 | Fisher's exact test (exact for the small 2×2 cells) | — | **0.174** |
 | One-way ANOVA: does mean delay differ by demand cluster? | F = 0.57 | **0.451** |
 
-**Goal 4 met, with a negative answer.** Mean arrival delay by demand cluster is
+Goal 4 met, with a negative answer. Mean arrival delay by demand cluster is
 morning-peaked 181.8 s, afternoon-peaked 155.9 s, and the ANOVA finds that gap
 consistent with chance; neither the χ² nor Fisher's exact test finds an association.
 Stations on one line share their trains, so these p-values are if anything optimistic,
 which only strengthens the null result. How busy a station is,
-and when, does **not** predict how punctually it is served. (With the origin
+and when, does not predict how punctually it is served. (With the origin
 artefact still in the data, the χ² had been borderline at p = 0.052. Removing a
 measurement error removed the hint of a relationship.) This is a legitimate finding
 and is reported as one — a project that only reports its positive results is not
 reporting honestly.
 
-**The join between the two typologies is by stop id, not by name.** The ridership
+The join between the two typologies is by stop id, not by name. The ridership
 feed and the delay data name some stations differently ("State Street" vs "State",
 "Mattapan Line" vs "Mattapan"), so an earlier name-based join silently left those
 stations out of this test. Joining on the shared `place-…` id brings in every
@@ -1419,22 +1430,22 @@ stations remain unmatched, correctly, because they are not in the subway delay d
 
 ### Other findings from the data
 
-*(`extras` stage.)* **Delays are sticky.** Regressing each arrival's delay on the
-previous stop's gives a slope of **0.88–1.00 on every line** except Mattapan (0.76)
+*(`extras` stage.)* Delays are sticky. Regressing each arrival's delay on the
+previous stop's gives a slope of 0.88–1.00 on every line except Mattapan (0.76)
 in spring, and 0.96–1.00 in winter (Mattapan 0.87): a train five minutes late stays
 nearly five minutes late. Mid-trip, trains gain or lose only a few seconds per stop,
 and only 3.4% of hops recover more than a minute (3.9% in winter). The timetable has
 almost no slack to absorb a delay, which is exactly why persistence is so hard to
 beat.
 
-*(`extras` stage.)* **The Red Line loses time on the way into its terminals.** The
-median change in delay on the final hop of a Red Line trip is **+27 s** (mean +54 s),
+*(`extras` stage.)* The Red Line loses time on the way into its terminals. The
+median change in delay on the final hop of a Red Line trip is +27 s (mean +54 s),
 against +2 s per hop mid-trip, consistent with trains being held outside a busy
 terminal. In winter the final hop costs a median +44 s. No other line shows it: their
 final-hop medians run from −23 s to +7 s.
 
-*(`extras` stage.)* **Green-E trains out of Heath Street are not running to the
-clock.** Towards Medford/Tufts they leave Heath Street minutes ahead of their
+*(`extras` stage.)* Green-E trains out of Heath Street are not running to the
+clock. Towards Medford/Tufts they leave Heath Street minutes ahead of their
 scheduled departure and look early all the way along the line. An earlier version
 of this report blamed a padded weekend timetable. The timetable disproves that:
 
@@ -1446,8 +1457,8 @@ of this report blamed a padded weekend timetable. The timetable disproves that:
 | Median departure from Heath St vs its scheduled time | **−3.5 min** | **−5.5 min** |
 
 The running times match the timetable almost exactly, so nothing is padded. The
-offset is there from the very first stop, and it is about **half the gap between
-scheduled trains** on both day types; across hours, the longer the scheduled gap,
+offset is there from the very first stop, and it is about half the gap between
+scheduled trains on both day types; across hours, the longer the scheduled gap,
 the earlier trains leave (correlation −0.66). At the second stop, the middle half of
 "delays" spans 6.3 minutes, most of the gap, against 1.7 minutes for the same line
 in the other direction. That is the signature of departures that are not held to
@@ -1458,15 +1469,15 @@ scheduled trips; this data cannot tell those apart. Either way, for these trips
 station clusters (§8) are now built on the wait behind the train in front, which
 this pairing cannot distort.
 
-**Planned shutdowns are plain in the record** (§5, Validation): 79 route-days at
+Planned shutdowns are plain in the record (§5, Validation): 79 route-days at
 under 60% of normal volume, including the whole Green Line for a week. The model is
 trained and tested across them without special handling, which is one reason the
 tail is hard to predict (§11).
 
 ### Where the T loses time
 
-A fifth question, answered from the same records: **where do trains lose time,
-and do they lose it moving or standing?** Every stretch of track (one stop to the
+A fifth question, answered from the same records: where do trains lose time,
+and do they lose it moving or standing? Every stretch of track (one stop to the
 next) and every platform is compared with its own good runs: its fastest tenth
 over the window, on the same line and in the same direction. Time beyond a good
 run is *lost*. The timetable is not the yardstick, because it schedules whole
@@ -1474,7 +1485,7 @@ minutes between stops (mostly 2 or 3) and pads some stretches. The source record
 each stop's running time from the previous stop and its time at the platform, and
 they match its own timestamps 99.85% of the time. `python -m mbta_ds.cli segments`
 (`src/mbta_ds/segments.py`) writes the results to `reports/tables/segments_*.csv`,
-and the app's **Time lost** view draws them on the map.
+and the app's Time lost view draws them on the map.
 
 | | Spring | Winter | Jul–Sep |
 |---|---|---|---|
@@ -1486,42 +1497,42 @@ and the app's **Time lost** view draws them on the map.
 | Mean per stretch or platform, weekday peaks | 18.7 s | 19.6 s | 19.3 s |
 | Mean per stretch or platform, other times | 17.0 s | 17.5 s | 16.7 s |
 
-**Time is lost in the same places every season.** Ranking the stretches by what a
+Time is lost in the same places every season. Ranking the stretches by what a
 typical train loses there gives almost the same order in spring, winter and
 July–September (rank correlation 0.93–0.95; platforms 0.91–0.95). The losses are
 a property of the network, not of the weather or a bad week.
 
-**The worst stretch per train is the last one into Alewife.** From Davis a good
+The worst stretch per train is the last one into Alewife. From Davis a good
 run takes 91 s; a typical train takes 76 s longer, and 1 in 10 at least 235 s
 longer. The last stretch into any terminal costs about twice what other stretches
 do, in every season. The records show the time lost but not its cause; waiting
 outside for a free platform is the likely one.
 
-**Then the Green Line's street-running branches.** Babcock Street → Packard's
+Then the Green Line's street-running branches. Babcock Street → Packard's
 Corner and Boston University Central → Amory Street on Commonwealth Avenue, and
 Longwood Medical Area → Museum of Fine Arts on Huntington Avenue, each cost a
 typical train 44–49 s, and their stops cost as much again at the platform (Saint
 Paul Street, Allston Street and Museum of Fine Arts: 45–47 s). These are the
 branches that share the street with road traffic.
 
-**One platform stands out: South Station, southbound Red Line.** A good stop takes
+One platform stands out: South Station, southbound Red Line. A good stop takes
 15 s; a typical train stands 64 s, the most time lost at any platform (49 s per
 train). The records do not say why.
 
-**In total, the Green Line's downtown tunnel costs the most.** Arlington → Boylston
+In total, the Green Line's downtown tunnel costs the most. Arlington → Boylston
 alone loses 280 train-minutes a day, but only because about 35,000 trains pass
 it: a typical train loses 25 s there. A place can matter to the network by
 volume or to each train by severity, and the two lists differ (the app shows
 both).
 
-**Lines lose time differently.** Per stretch and platform, the Orange Line loses
+Lines lose time differently. Per stretch and platform, the Orange Line loses
 least moving (5 s against the Red and Green Lines' 20–21 s): two thirds of its
 lost time is at platforms. The Green Line loses the most both ways.
 
-**Rush hour barely matters:** 18.7 s per stretch or platform at the weekday peaks,
+Rush hour barely matters: 18.7 s per stretch or platform at the weekday peaks,
 against 17.0 s the rest of the time.
 
-**Winter exposes a few places.** Against spring, the largest increases per train
+Winter exposes a few places. Against spring, the largest increases per train
 are at Beaconsfield's platforms (26 s → 65 s), Braintree – Quincy Adams (38 s →
 53 s), and three Orange Line stretches: Forest Hills – Green Street (15 s → 28 s),
 Jackson Square – Stony Brook (3 s → 16 s) and Malden Center – Wellington
@@ -1539,7 +1550,7 @@ is left out.
 
 ## 9. Visualisations
 
-`make figures` writes **11 interactive HTML figures and 6 static PNGs**; running
+`make figures` writes 11 interactive HTML figures and 6 static PNGs; running
 `make live` first adds a twelfth (`live_vs_historical.html`) that compares live API
 behaviour against the historical record. The interactive figures are self-contained
 pages (the Plotly runtime is loaded from a CDN); open any of them in a browser.
@@ -1559,19 +1570,19 @@ pages (the Plotly runtime is loaded from a CDN); open any of them in a browser.
 | `cluster_scatter.html` | Station demand vs mean delay, coloured and shaped by both typologies |
 | `live_vs_historical.html` | Live API prediction volatility against the historical delay distribution |
 
-**Visual design decisions, stated so they can be defended:**
+Visual design decisions, stated so they can be defended:
 
-* **Violin rather than box** for delay by route, because the delay distribution is
+* Violin rather than box for delay by route, because the delay distribution is
   strongly bimodal near zero and a box plot's quartiles would hide that shape.
-* **Heatmap rather than line chart** for station × hour, because the question is
+* Heatmap rather than line chart for station × hour, because the question is
   two-dimensional and a line per station would be unreadable at 125 stations.
-* **Median rather than mean** in the heatmap, so a few severe disruptions do not
+* Median rather than mean in the heatmap, so a few severe disruptions do not
   recolour a station.
-* **Permutation importance rather than a tree's built-in importance**, because
+* Permutation importance rather than a tree's built-in importance, because
   impurity importance is biased towards high-cardinality features and this model has
   a 124-level station feature that would otherwise dominate the ranking spuriously.
 * Distribution and curve figures are drawn from bounded samples. Plotly embeds every
-  plotted point; an unsampled violin over 3.2M rows produced a **61 MB** HTML file.
+  plotted point; an unsampled violin over 3.2M rows produced a 61 MB HTML file.
   Reducing that to a 30,000-row sample brings it to 0.6 MB with no visible change in
   the distribution.
 
@@ -1605,9 +1616,9 @@ was asleep starts when it wakes.
 
 An earlier short capture (5 polls, ~40 s apart, kept in the gitignored
 `data/raw/v3/`, so these figures are specific to it) is used for one thing the
-historical archive cannot provide: **how much a predicted arrival time moves
-between polls.** Across
-2,921 repeated observations, the median revision is **0 s** and the mean **1.5 s**
+historical archive cannot provide: how much a predicted arrival time moves
+between polls. Across
+2,921 repeated observations, the median revision is 0 s and the mean 1.5 s
 (σ 13.8 s, largest 82 s) — the MBTA's live predictions are stable over ~40-second
 intervals. Five polls is a small sample; `make live` runs longer for a sturdier
 estimate.
@@ -1625,12 +1636,12 @@ push and pull request, then checks that every pipeline stage imports cleanly.
 `.github/workflows/map.yml` lints, unit-tests and builds the app in `map/` (the 3D
 map and the results views) whenever it changes.
 
-The tests are **deliberately network-free** and build small synthetic frames with
+The tests are deliberately network-free and build small synthetic frames with
 the same columns and quirks as the real sources, so CI needs no API key and does not
 break when MBTA publishes new data. The behaviours they pin down are the ones most
 likely to regress silently:
 
-* the GTFS schedule anchor (noon − 12 h), **including both DST transition days**;
+* the GTFS schedule anchor (noon − 12 h), including both DST transition days;
 * validation failing on a day lost at the window's edge, a table from another
   window, ridership missing a window date, and weather that stops short;
 * backdated alerts counting from their creation, and alerts matched on the
@@ -1643,7 +1654,7 @@ likely to regress silently:
 * post-midnight trips with GTFS times above 86400 s;
 * exclusion of `ADDED-*` / `NONREV-*` trips;
 * de-duplication on the full `(service_date, trip_id, stop_id)` key;
-* **lag features never crossing service dates or trips** (the bug that produced
+* lag features never crossing service dates or trips (the bug that produced
   nonsense in an early version);
 * the leakage guard: no target column may appear in the feature set;
 * temporal splits placing all train dates strictly before all test dates, with no
@@ -1651,19 +1662,19 @@ likely to regress silently:
 * clustering recovering a planted structure, and agreement between k-means and Ward;
 * band-intensity arithmetic that stops the long night band being labelled a peak;
 * cluster names being unique across clusters;
-* **alerts never being visible before they start**, elevator outages being ignored,
+* alerts never being visible before they start, elevator outages being ignored,
   and duplicate archive rows counting once;
-* demand lags running over **calendar days**, so a station's missing day does not
+* demand lags running over calendar days, so a station's missing day does not
   shift what "the previous seven days" means;
-* station names resolving to the **latest** schedule version, with the platform-id
+* station names resolving to the latest schedule version, with the platform-id
   fallback staying row-aligned on a filtered, shuffled index;
-* ridership stations joining to delay stations **by stop id**, not by name;
-* the monotone time index staying **out** of the model's features;
+* ridership stations joining to delay stations by stop id, not by name;
+* the monotone time index staying out of the model's features;
 * isolated stops hours off both neighbours being dropped, while a real hold-up
   that persists is kept;
 * boosted models stopping early on the latest training dates, not random rows;
 * the stickiness and final-hop analyses;
-* trips ordered by **scheduled time**, so a final stop mislabelled
+* trips ordered by scheduled time, so a final stop mislabelled
   `stop_sequence == 1` never becomes anyone's "previous stop";
 * one row per scheduled visit, impossible timestamps flagged, and trip origins
   used as lag sources but never as targets;
@@ -1691,24 +1702,24 @@ likely to regress silently:
 Stated plainly, because the rubric asks for them and because they are the honest
 boundaries of what this analysis supports.
 
-1. **Three seasonal windows, not a year.** The main window (April–June 2026) has no snow, so
+1. Three seasonal windows, not a year. The main window (April–June 2026) has no snow, so
    the pipeline was re-run on December–February (§7, *Winter*), where weather still
    added nothing measurable. July–September was checked later (§7, *Holdout*),
    but autumn leaf fall remains untested and no model has been trained across a
    full year. The cross-season transfer scores are reported in §7.
-2. **Weather is retrospective hourly reanalysis.** Features are joined on the
+2. Weather is retrospective hourly reanalysis. Features are joined on the
    observed weather at the prediction hour. It is a proxy for a nowcast, not a
    forecast or a measurement guaranteed to have been available in real time.
-3. **Persistence is not the strongest baseline.** The learned model cuts its
+3. Persistence is not the strongest baseline. The learned model cuts its
    MAE by two thirds, but one stop ahead a lookup of departure time plus usual
    running time does better still (14.0 s vs 16.1 s, §7). The model is largely
    re-weighting a single signal rather than discovering structure, because
    delays barely change from stop to stop (§8). For
    the yes/no lateness question the lift over persistence is small (F1 0.859 → 0.874).
-4. **The longest stop-level delay is the least predictable part.** The median
+4. The longest stop-level delay is the least predictable part. The median
    absolute error is ~4 s while the MAE is ~16 s, so the mean is driven by a tail
    the model does not capture. Predicting the *tail* is the open problem.
-5. **The model under-predicts large delays, by design.** Trained on absolute error,
+5. The model under-predicts large delays, by design. Trained on absolute error,
    it predicts the *typical* outcome (bias −5.7 s). Its large misses lean towards
    under-prediction: 3,381 predictions more than 5 minutes too early against 639
    more than 5 minutes too late. Of 77,217 test arrivals with timetable offsets
@@ -1716,56 +1727,56 @@ boundaries of what this analysis supports.
    under 5 minutes behind the timetable, only 8 were predicted above 10 minutes.
    These are timetable-delay errors; rider-waiting onsets are evaluated separately
    in §7.
-6. **The demand clusters are a gradient, not separated groups.** DBSCAN finds no
+6. The demand clusters are a gradient, not separated groups. DBSCAN finds no
    structure at all, and Ward agreement is 0.84.
    The two clusters are a useful summary of a continuum, not a discovered taxonomy,
    and one station (`Longwood`, 1 entry/day) is excluded from shape clustering
    entirely for insufficient coverage.
-7. **56 of 125 stations have no demand signal at all**, so `station_entries_lag7` is
+7. 56 of 125 stations have no demand signal at all, so `station_entries_lag7` is
    missing for 32% of rows. The boosted models take the gap as missing, the others
    impute the training median, and all see the `demand_missing` flag; any demand
    effect is estimated from the gated subset only.
-8. **Ridership counts are unscaled faregate taps.** They exclude non-tapping riders
+8. Ridership counts are unscaled faregate taps. They exclude non-tapping riders
    and fare evasion, include employee taps, and are not captured when gates are held
    open. Multi-line stations are split across lines using CTPS survey factors. They
-   are **not total ridership**, and the clustering is a clustering of *entry
+   are not total ridership, and the clustering is a clustering of *entry
    behaviour*, not of people.
-9. **Models train on a sample.** Each fit uses 450,000 date-stratified training
+9. Models train on a sample. Each fit uses 450,000 date-stratified training
    rows rather than all 2.2M, to keep the pipeline to minutes; every test arrival
    is scored. Training on every row was tested on an earlier version of the target
    and improved MAE by under 2%.
-10. **Some source-data defects can be flagged but not repaired.** 1,358 arrivals
+10. Some source-data defects can be flagged but not repaired. 1,358 arrivals
     are timestamped before the previous stop, and are excluded from targets. Green-E
     trips out of Heath Street are compared against timetable slots they do not run
     to (§8), so their "delay" measures the pairing, not lateness. The model learns
     that offset rather than correcting it. For such services, a *headway* measure
     (time since the previous train) would be the fairer yardstick.
-11. **`trip_id` is reused across service dates.** Any future analysis that groups on
+11. `trip_id` is reused across service dates. Any future analysis that groups on
     `trip_id` alone will silently mix days — the mistake is documented and tested,
     but the underlying data-model wrinkle remains.
 12. **`ADDED-*` trips are excluded entirely.** These are real service that real
     riders experienced, so the model is trained on scheduled service only.
-13. **The design was iterated on one test period.** The change target, the loss, the
+13. The design was iterated on one test period. The change target, the loss, the
     seed averaging and the feature groups were each judged on the same 8–30 June
     test period, and winter motivated the change target. The headline models are now
     fixed in advance rather than picked by test score. The July–September holdout
     (§7) checked the frozen design, and its first run is the untouched result; it
     also prompted cleaning rule 11 and was reused for the timing correction, so
     the corrected results are not fully untouched.
-14. **Early stopping uses the latest training days.** The boosted models stop on the
+14. Early stopping uses the latest training days. The boosted models stop on the
     last 10% of training service dates rather than scikit-learn's random 10% of rows,
     which put stops of one trip on both sides and flattered the validation loss.
-15. **Horizons are scored on different arrivals.** Predicting *k* stops ahead needs
+15. Horizons are scored on different arrivals. Predicting *k* stops ahead needs
     a run at least *k* stops old, so the 10-stop row scores 421k arrivals against
     870k one stop ahead. §7 also reports each horizon's overlap with the ten-stop
     test set; timing exclusions mean those overlaps are not identical.
-16. **"Disrupted" route-days are defined from the outcome** (the share of arrivals
+16. "Disrupted" route-days are defined from the outcome (the share of arrivals
     10+ minutes late), so the normal/disrupted split describes where the error is,
     not something known at prediction time.
-17. **The cross-track tests treat stations as independent.** Stations on one line
+17. The cross-track tests treat stations as independent. Stations on one line
     share their trains, so the χ² and ANOVA p-values are, if anything, optimistic;
     the null result only gets stronger.
-18. **`stop_count` is not a feature.** It is the number of stops the trip *recorded*
+18. `stop_count` is not a feature. It is the number of stops the trip *recorded*
     (equal to the stops logged for 95% of trips), so it could reveal a trip later cut
     short, and so could `fraction_through_trip`, which divides by it. Both were
     removed from the model; `stop_index`, the stops travelled so far, replaces them.
@@ -1774,13 +1785,13 @@ boundaries of what this analysis supports.
 
 ## 12. Reproducibility
 
-* **Everything is regenerable from the repository.** `make all` rebuilds every
+* Everything is regenerable from the repository. `make all` rebuilds every
   artefact from public sources. Processed data and downloaded caches are gitignored.
-* **One pinned analysis window.** `END` defaults to 2026-06-30, so a run on another
+* One pinned analysis window. `END` defaults to 2026-06-30, so a run on another
   machine, months later, analyses the same dates even after the MBTA publishes newer
   data. The collection stage persists the window to `data/analysis_window.json` and
   every later stage reads it.
-* **Failures are loud, never silent.** A failed archive download, a failed or
+* Failures are loud, never silent. A failed archive download, a failed or
   partial ridership fetch, or an unreadable ridership coverage probe stops the build
   (an earlier version logged a warning and carried on, and a transient empty reply
   from the ridership server, seen 1 time in 9, would have moved the whole analysis
@@ -1789,15 +1800,15 @@ boundaries of what this analysis supports.
   window date, or weather that does not reach the last service day all fail it.
   `python -m mbta_ds.cli all` always rebuilds the derived tables rather than reusing
   a cache from another window.
-* **Seeded throughout.** `SEED = 506` is used for sampling, every model and every
+* Seeded throughout. `SEED = 506` is used for sampling, every model and every
   clustering call.
-* **Collection is cached and incremental.** Re-running `make data` skips files
+* Collection is cached and incremental. Re-running `make data` skips files
   already downloaded; downloads are written atomically via a `.part` file so an
   interrupted run never leaves a truncated file that a later run treats as valid.
   Only data the pipeline actually reads is fetched: of the four LAMP static tables,
   only `stops` is used, so `routes`, `trips` and `stop_times` (~2.6 GB between them,
   2.3 GB of it `stop_times`) are not downloaded.
-* **Deterministic stages.** Given the same downloaded data and pinned versions,
+* Deterministic stages. Given the same downloaded data and pinned versions,
   rebuilding clean → features → train → tail → cluster in a separate folder gave
   byte-identical outputs: every metrics file, prediction table, ablation, backtest
   and cluster assignment. The archive files themselves were checked against the
@@ -1807,7 +1818,7 @@ boundaries of what this analysis supports.
   because the MBTA had revised a few of its then-recent records (§7, *Holdout*).
   Recent archive days can still change, so a check against a newly published
   period should pin its files once downloaded.
-* **Every number comes from code.** The narrative findings (delay stickiness, the
+* Every number comes from code. The narrative findings (delay stickiness, the
   final hop, Heath Street, the winter storm days, the cross-season test, the
   independent re-derivation) are computed by the `extras` stage (`make report` runs
   it; results in `extras.json` and `reports/tables/extras_*.csv`); the single-seed
@@ -1816,7 +1827,7 @@ boundaries of what this analysis supports.
   calls a third-party API and so is run on its own. Passages describing *earlier
   versions* of the model are marked as history. The only exception is the
   live-capture statistics (§9), which depend on a capture kept outside the repository.
-* **Speed.** The training stage fits many models for the robustness work (three
+* Speed. The training stage fits many models for the robustness work (three
   seeds per ablation row, four backtest refits, four prediction horizons), so a full
   run can take tens of minutes; `--quick` reduces both the sample and the sweeps.
   The decision trees get
@@ -1825,10 +1836,10 @@ boundaries of what this analysis supports.
   fitted once. A GPU was benchmarked (XGBoost on CUDA, RTX 5060 Ti) and is *not*
   used: at 430k training rows it was no faster than the CPU, and it only pulled
   ahead (2.2×) on the full 2.3M-row table, where accuracy improved by under 2%.
-* **Four thresholds are data-derived and documented** rather than tuned silently:
+* Four thresholds are data-derived and documented rather than tuned silently:
   the demand-coverage floor, the band-intensity factor for cluster naming, and the
   row caps for the costly models.
-* **The default run is bounded** so `make all` finishes in minutes rather than
+* The default run is bounded so `make all` finishes in minutes rather than
   hours. `make DAYS=180 data` and `make model-full` scale it up.
 
 ### Pipeline stages
@@ -1847,7 +1858,7 @@ boundaries of what this analysis supports.
 | Story | `story` | `reports/story.html` and `reports/figures/story_*.png`: the results in plain words |
 | Cluster | `cluster` | Track B: reliability and demand clustering, cross-tests |
 | Figures | `figures` | Render interactive HTML + PNG figures (12 with live data, 11 without) |
-| Extras | `extras` | The supporting analyses behind the README's narrative claims (run by `make report`) |
+| Extras | `extras` | The supporting analyses behind the report's narrative claims (run by `make report`) |
 | Crosscheck | `crosscheck` | Compare with TransitMatters' independent timestamps (network; run on its own) |
 | MBTA comparison | `compare-mbta` | Score our predictions by the MBTA's countdown-clock accuracy rule (network; run on its own) |
 | Export map | `export-map [--day RUN:DATE]` | `map/public/data/`: the network and replay days for the 3D map (run by `make map`) |
@@ -1893,28 +1904,28 @@ which suits high-frequency lines like Green-E out of Heath Street. The map and
 every result now live in one app (`map/`, §9), and the whole pipeline has been
 rebuilt from scratch on a second machine (§12).
 
-1. **Check the holdout's fix on a new period.** Cleaning rule 11 (§5) was prompted
+1. Check the holdout's fix on a new period. Cleaning rule 11 (§5) was prompted
    by the July–September holdout. When the MBTA publishes October onwards, run the
    frozen pipeline once more (`make RUN=next END=... NO_RIDERSHIP=1 all`) for a
    check that no decision has seen. The same run is where the lookup-correcting
    model (§7) can be promoted to the headline, or not.
-2. **Onsets need new information.** The early-warning model catches 27% of sudden disruptions one stop ahead at 50% precision, but only 6% five stops ahead (§7),
+2. Onsets need new information. The early-warning model catches 27% of sudden disruptions one stop ahead at 50% precision, but only 6% five stops ahead (§7),
    and targeting onsets directly did not help. Alerts, read at the minute with
    their cause and announced delay, do not help either: they come too late (§7,
    *Do alerts help*). Crowding, which is live-only (item 3), is the remaining
    candidate.
-3. **Benchmark against the MBTA's own countdown clocks, head to head.** Scored by
+3. Benchmark against the MBTA's own countdown clocks, head to head. Scored by
    the MBTA's own rule, our models land in the right range (§7, *Against the MBTA's
    own countdown clocks*), but the two samples differ. The MBTA does not archive its
    predictions, so a fair test needs `make live` left running for a few weeks,
    scored against `/stop_events` or the next day's LAMP file. The same collector
    records per-car crowding (`carriages`), which is not archived either.
-4. **More seasons.** Spring and winter models transfer with about 1.4 s lost at
+4. More seasons. Spring and winter models transfer with about 1.4 s lost at
    most (§7, *Winter*), and July–September was checked later. Dedicated tests of
    summer heat restrictions and autumn leaf fall remain future work.
-5. **Forecast the weather.** Replace the nowcast with a forecast API to make the
+5. Forecast the weather. Replace the nowcast with a forecast API to make the
    feature legitimate at prediction time.
-6. **Add bus data.** LAMP publishes bus events too (7.4 GB), and buses share road
+6. Add bus data. LAMP publishes bus events too (7.4 GB), and buses share road
    congestion with the Green Line's street-running branches.
-7. **Turn it into a rider-facing artefact.** "Should I leave now?" is a
+7. Turn it into a rider-facing artefact. "Should I leave now?" is a
    decision-theoretic problem on top of the horizon predictions.

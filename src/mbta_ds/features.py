@@ -14,7 +14,7 @@ stop *k*. Concretely:
 * Weather and alerts are joined on the hour of the *prediction moment*
   (``known_at``), never on the target's scheduled hour, which may lie after it.
   Weather is still observed (reanalysis) weather, a nowcast rather than a
-  forecast; the README flags it and the ablation measures what it buys.
+  forecast; REPORT.md flags it and the ablation measures what it buys.
 
 Feature groups are declared explicitly (:data:`FEATURE_GROUPS`) so the trainer can
 run ablations without re-deriving anything.
@@ -81,7 +81,7 @@ FEATURE_GROUPS: dict[str, tuple[str, ...]] = {
     # monotone index of the window, so under a temporal split its train and test
     # ranges never overlap and a tree splitting on it extrapolates blindly. It is
     # still built into the table so `model_delay.run_calendar_diagnostic` can
-    # measure the damage (README section 7).
+    # measure the damage (REPORT.md section 7).
     "calendar": (
         "day_of_week",
         "is_weekend",
@@ -137,7 +137,8 @@ MAX_TRIP_OVERLAP_SECONDS = 300
 CATEGORICAL_GROUP = ("categorical",)
 
 #: Built into the table for diagnostics only; see the note on "calendar" above.
-DIAGNOSTIC_COLUMNS = ("days_since_window_start", "stop_count", "fraction_through_trip")
+TIMING_COLUMNS = ("prev_stop_timestamp", "prev2_stop_timestamp", "prev_dwell_end_timestamp")
+DIAGNOSTIC_COLUMNS = ("days_since_window_start", "stop_count", "fraction_through_trip") + TIMING_COLUMNS
 
 #: Peak hours by the MBTA's own definition of weekday peaks.
 PEAK_HOURS = (7, 8, 9, 16, 17, 18)
@@ -170,6 +171,9 @@ def add_propagation_features(frame: pd.DataFrame, horizon: int = 1) -> pd.DataFr
     asked to predict five stops ahead, knowing only what had happened by then.
     ``known_at`` is that moment: departure from stop *target - horizon* (the next
     row's ``move_timestamp``), falling back to the arrival there when unrecorded.
+    A target is usable only when that arrival is at or before ``known_at`` and
+    ``known_at`` is strictly before the target arrival. Optional observations
+    recorded later are masked rather than supplied to the model.
 
     Grouping key is ``(service_date, trip_id)`` and **not** ``trip_id`` alone:
     trip ids are reused across service dates, so grouping on the id alone would
@@ -186,15 +190,43 @@ def add_propagation_features(frame: pd.DataFrame, horizon: int = 1) -> pd.DataFr
     out["prev_dwell_seconds"] = group["dwell_time_seconds"].shift(k)
     out["prev_travel_time_seconds"] = group["travel_time_seconds"].shift(k)
     out["prev_headway_seconds"] = group["headway_trunk_seconds"].shift(k)
-    # Slope of delay over the last two known stops: losing or gaining time?
-    out["delay_trend"] = out["prev_delay_1"] - out["prev_delay_2"]
     if "lateness_seconds" in out:
         out["prev_lateness_1"] = group["lateness_seconds"].shift(k)
     out["scheduled_seconds_ahead"] = (
         out["scheduled_arrival_time"] - group["scheduled_arrival_time"].shift(k)
     )
-    departed = group["move_timestamp"].shift(k - 1) if k > 1 else out["move_timestamp"]
-    out["known_at"] = departed.combine_first(group["stop_timestamp"].shift(k))
+    departed = (group["move_timestamp"].shift(k - 1) if k > 1 else out["move_timestamp"]).astype(float)
+    out["prev_stop_timestamp"] = group["stop_timestamp"].shift(k).astype(float)
+    out["prev2_stop_timestamp"] = group["stop_timestamp"].shift(k + 1).astype(float)
+    out["known_at"] = departed.combine_first(out["prev_stop_timestamp"])
+    out["prediction_timing_valid"] = (
+        np.isfinite(out["prev_stop_timestamp"])
+        & np.isfinite(out["known_at"])
+        & np.isfinite(out["stop_timestamp"].astype(float))
+        & (out["prev_stop_timestamp"] <= out["known_at"])
+        & (out["known_at"] < out["stop_timestamp"])
+    )
+
+    out["prev_delay_2"] = out["prev_delay_2"].where(
+        out["prev2_stop_timestamp"] <= out["known_at"])
+    out["delay_trend"] = out["prev_delay_1"] - out["prev_delay_2"]
+
+    # A complete dwell and departure-to-departure headway are unavailable when
+    # we fall back to arrival, or when the reported dwell ends after departure.
+    out["prev_dwell_end_timestamp"] = out["prev_stop_timestamp"] + out["prev_dwell_seconds"]
+    departure_known = departed.notna() & (
+        out["prev_dwell_end_timestamp"].isna()
+        | (out["prev_dwell_end_timestamp"] <= out["known_at"]))
+    out["prev_dwell_seconds"] = out["prev_dwell_seconds"].where(departure_known)
+    out["prev_headway_seconds"] = out["prev_headway_seconds"].where(departure_known)
+    if "lateness_seconds" in out:
+        # Arrival-gap lateness, used when departure headways are absent, is
+        # already observed at arrival and needs no departure.
+        departure_gap = group["headway_trunk_seconds"].shift(k).notna()
+        if "headway_branch_seconds" in out:
+            departure_gap |= group["headway_branch_seconds"].shift(k).notna()
+        out["prev_lateness_1"] = out["prev_lateness_1"].where(
+            departure_known | ~departure_gap)
     return out
 
 
@@ -569,7 +601,7 @@ def build(
     write_cache = not no_cache and clean_frame is None and horizon == 1
     if write_cache and OUT_PATH.exists() and not refresh:
         log.info("using cached feature table %s", OUT_PATH.name)
-        return pd.read_parquet(OUT_PATH)
+        return load()
 
     config.ensure_dirs()
     frame = clean.load() if clean_frame is None else clean_frame
@@ -616,9 +648,21 @@ def build(
         # Origin and impossible rows have served as lag sources above; they are
         # not arrival delays, so they are not targets. Nor is a stop fewer than
         # `horizon` stops into its run, where nothing about the train is known yet.
-        targets = clean.is_arrival(frame) & frame["prev_delay_1"].notna()
+        candidates = clean.is_arrival(frame) & frame["prev_delay_1"].notna()
+        targets = candidates & frame["prediction_timing_valid"]
+        timing = {
+            "horizon_stops": horizon,
+            "candidate_rows": int(candidates.sum()),
+            "excluded_rows": int((candidates & ~targets).sum()),
+            "source_after_prediction": int((candidates & (
+                frame["prev_stop_timestamp"] > frame["known_at"])).sum()),
+            "prediction_not_before_arrival": int((candidates & (
+                frame["known_at"] >= frame["stop_timestamp"])).sum()),
+        }
         log.info("keeping %s target rows (dropped %s origin / inconsistent / "
-                 "too-early rows)", f"{targets.sum():,}", f"{(~targets).sum():,}")
+                 "too-early / invalid-timing rows)", f"{targets.sum():,}", f"{(~targets).sum():,}")
+        log.info("prediction timing: excluded %s of %s candidate rows",
+                 f"{timing['excluded_rows']:,}", f"{timing['candidate_rows']:,}")
         frame = stratified_sample(frame[targets], max_rows, seed)
         progress.step("schedule, calendar and targets", extra=f"{len(frame):,} rows")
 
@@ -661,6 +705,7 @@ def build(
     )
     keep = [c for c in keep if c in frame.columns]
     frame = frame[keep].reset_index(drop=True)
+    frame.attrs["prediction_timing"] = timing
 
     if not write_cache:
         return frame
@@ -676,7 +721,11 @@ def load() -> pd.DataFrame:
     """Load the cached feature table, building it if absent."""
     if not OUT_PATH.exists():
         return build()
-    return pd.read_parquet(OUT_PATH)
+    frame = pd.read_parquet(OUT_PATH)
+    if not set(TIMING_COLUMNS).issubset(frame.columns):
+        raise ValueError("cached feature table lacks prediction timing diagnostics; "
+                         "run `python -m mbta_ds.cli features --refresh`")
+    return frame
 
 
 def summary(frame: pd.DataFrame | None = None) -> dict:
@@ -694,6 +743,7 @@ def summary(frame: pd.DataFrame | None = None) -> dict:
         "date_max": str(frame["service_date_parsed"].max()),
         "n_features": len(features),
         "missing_pct": missing,
+        "prediction_timing": frame.attrs.get("prediction_timing", {}),
     }
 
 

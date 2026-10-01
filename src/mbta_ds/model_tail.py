@@ -128,15 +128,18 @@ def evaluate_horizon(k: int, *, quick: bool) -> dict:
     # Two ways of aiming at onsets directly, scored like the rest: train only on
     # trains under 5 minutes late now, or target "loses 5+ minutes from here".
     on_time = train[train["prev_lateness_1"] < ONSET_BELOW_SECONDS]
-    train = train.assign(loses_5min=((train["lateness_seconds"] - train["prev_lateness_1"])
-                                     > ONSET_BELOW_SECONDS).astype(int))
+    loss_train = train[train["prev_lateness_1"].notna()].copy()
+    loss_train["loses_5min"] = ((loss_train["lateness_seconds"] - loss_train["prev_lateness_1"])
+                               > ONSET_BELOW_SECONDS).astype(int)
     scores = {
         "model": proba,
         **{f"model, single seed {seed}": p for seed, p in zip(seeds, per_seed)},
         "model trained on on-time trains only": classifier(on_time, "big_delay", md.SEED),
-        "model targeting a 5+ minute loss": classifier(train, "loses_5min", md.SEED),
+        "model targeting a 5+ minute loss": classifier(loss_train, "loses_5min", md.SEED),
         # Baselines rank trains by one signal each; higher means "more likely late".
-        "baseline: how late the train is now": test["prev_lateness_1"].to_numpy(dtype=float),
+        # Unknown previous lateness has no positive warning signal, as in the
+        # persistence classifier; retain those arrivals in the evaluation.
+        "baseline: how late the train is now": test["prev_lateness_1"].fillna(0).to_numpy(dtype=float),
         "baseline: share of the line behind the timetable":
             test["line_late_share_15m"].fillna(0).to_numpy(),
     }

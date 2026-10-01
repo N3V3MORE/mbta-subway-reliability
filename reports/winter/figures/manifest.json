@@ -10,8 +10,7 @@
     "roc_pr.html",
     "error_breakdown.html",
     "demand_profiles.html",
-    "cluster_scatter.html",
-    "live_vs_historical.html"
+    "cluster_scatter.html"
   ],
   "png": [
     "ablation.png",
@@ -21,5 +20,7 @@
     "delay_heatmap.png",
     "calibration.png"
   ],
-  "skipped": {}
+  "skipped": {
+    "figure_live_vs_historical": "no live data collected yet"
+  }
 }

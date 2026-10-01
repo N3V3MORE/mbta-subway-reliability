@@ -49,11 +49,11 @@ so a station or a train can be shared.
 front, minus the scheduled gap. Delay against the timetable is not used for it,
 because on frequent lines trains are paired with timetable slots in order, and a
 line running slightly sparse drifts far "behind" while riders see near-normal
-service (see the main README, §5).
+service (see REPORT.md, §5).
 
 ## Run it
 
-Needs Node.js 20 or later. The data in `public/data/` is committed, so the app runs
+Needs Node.js 20.19+ or 22.12+. The data in `public/data/` is committed, so the app runs
 straight from a clone:
 
 ```bash

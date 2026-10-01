@@ -1,7 +1,7 @@
-"""Supporting analyses behind the README's narrative claims.
+"""Supporting analyses behind the report's narrative claims.
 
 The main stages produce the headline tables. This stage recomputes the smaller
-findings the README quotes, so every number there comes from code:
+findings the report quotes, so every number there comes from code:
 
 * how sticky delay is along a trip (slope of delay on the previous stop's);
 * how much delay changes on a trip's final hop versus mid-trip;

@@ -8,8 +8,7 @@
     "feature_importance.html",
     "predicted_vs_actual.html",
     "roc_pr.html",
-    "error_breakdown.html",
-    "live_vs_historical.html"
+    "error_breakdown.html"
   ],
   "png": [
     "ablation.png",
@@ -21,6 +20,7 @@
   "skipped": {
     "figure_demand_profiles": "demand_profiles.parquet missing; run the `cluster` stage first",
     "figure_cluster_scatter": "demand clustering not available",
+    "figure_live_vs_historical": "no live data collected yet",
     "png_demand_profiles": "demand_profiles.parquet missing; run the `cluster` stage first"
   }
 }

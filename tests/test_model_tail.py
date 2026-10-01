@@ -10,6 +10,36 @@ from mbta_ds import model_delay, model_tail
 
 
 class TestEarlyWarningMetrics:
+    def test_horizon_evaluation_handles_an_unknown_previous_lateness(self, monkeypatch):
+        from mbta_ds import features
+        from .test_model_delay import _toy_frame
+
+        frame = _toy_frame()
+        frame["lateness_seconds"] = np.where(np.arange(len(frame)) % 2, 700.0, 100.0)
+        frame.loc[frame["service_date"] == frame["service_date"].max() - 1, "lateness_seconds"] = 100.0
+        frame.loc[frame.index[::5], "prev_lateness_1"] = np.nan
+        monkeypatch.setattr(features, "build", lambda **kwargs: frame.copy())
+
+        class FixedModel:
+            def predict_proba(self, X):
+                return np.tile([0.5, 0.5], (len(X), 1))
+
+            def predict(self, X):
+                return np.zeros(len(X))
+
+        def fit(model, rows, numeric, categorical, target):
+            if target == "loses_5min":
+                assert rows["prev_lateness_1"].notna().all()
+            return FixedModel()
+
+        monkeypatch.setattr(model_delay, "_fit", fit)
+        result = model_tail.evaluate_horizon(1, quick=True)
+        baseline = next(row for row in result["warning"]
+                        if row["method"] == "baseline: how late the train is now"
+                        and row["subset"] == "all arrivals")
+        assert baseline["n"] == model_delay.temporal_split(frame).n_test
+        assert np.isfinite(baseline["pr_auc"])
+
     def test_recall_at_precision_on_a_perfect_ranking(self):
         y = np.array([0, 0, 0, 1, 1])
         score = np.array([0.1, 0.2, 0.3, 0.8, 0.9])

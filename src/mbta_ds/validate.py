@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import operator
 
+import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 
@@ -155,7 +156,25 @@ def check_features(frame: pd.DataFrame, window: tuple | None = None) -> list[dic
     outside = ([_check(f, "service dates outside the analysis window",
                        len(set(frame["service_date_parsed"]) - _window_days(window)), "==", 0)]
                if window else [])
-    return outside + [
+    required = set(features.TIMING_COLUMNS) | {"known_at", "arrival_local"}
+    timing = [_check(f, "prediction timing diagnostics absent (refresh features)",
+                     len(required - set(frame.columns)), "==", 0)]
+    if required.issubset(frame.columns):
+        arrival = frame["arrival_local"].astype("int64") / 1e9
+        valid = (np.isfinite(frame["prev_stop_timestamp"]) & np.isfinite(frame["known_at"])
+                 & frame["arrival_local"].notna()
+                 & (frame["prev_stop_timestamp"] <= frame["known_at"])
+                 & (frame["known_at"] < arrival))
+        timing += [
+            _check(f, "invalid prediction chronology", (~valid).sum(), "==", 0),
+            _check(f, "second-stop delay observed after prediction",
+                   (frame["prev_delay_2"].notna() & ~(
+                       frame["prev2_stop_timestamp"] <= frame["known_at"])).sum(), "==", 0),
+            _check(f, "completed dwell observed after prediction",
+                   (frame["prev_dwell_seconds"].notna() & ~(
+                       frame["prev_dwell_end_timestamp"] <= frame["known_at"])).sum(), "==", 0),
+        ]
+    return outside + timing + [
         _check(f, "target columns among the features",
                len(set(declared) & set(features.TARGET_COLUMNS)), "==", 0),
         _check(f, "declared features absent from the table",

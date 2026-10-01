@@ -17,6 +17,10 @@ clean,route-days below 60% of usual volume (shutdowns),91.0,>=,0.0,False,True
 clean,share of arrivals judged by the timetable (no gap recorded),0.0049,>=,0.0,False,True
 clean,share of arrivals behind the timetable that riders saw on time (drift),0.7278,>=,0.0,False,True
 features,service dates outside the analysis window,0.0,==,0.0,True,True
+features,prediction timing diagnostics absent (refresh features),0.0,==,0.0,True,True
+features,invalid prediction chronology,0.0,==,0.0,True,True
+features,second-stop delay observed after prediction,0.0,==,0.0,True,True
+features,completed dwell observed after prediction,0.0,==,0.0,True,True
 features,target columns among the features,0.0,==,0.0,True,True
 features,declared features absent from the table,0.0,==,0.0,True,True
 features,fraction_through_trip outside 0..1,0.0,==,0.0,True,True

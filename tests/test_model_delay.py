@@ -127,6 +127,26 @@ class TestMetrics:
 
 
 class TestBaselines:
+    @pytest.mark.parametrize("threshold", [300.0, 120.0])
+    def test_persistence_probability_agrees_with_the_strict_threshold(self, threshold):
+        values = [threshold - 1, np.nextafter(threshold, -np.inf), threshold,
+                  np.nextafter(threshold, np.inf), threshold + 1, np.nan]
+        frame = pd.DataFrame({"prev_lateness_1": values})
+        model = model_delay.PersistenceClassifier(threshold=threshold)
+        expected = np.array([0, 0, 0, 1, 1, 0])
+        probabilities = model.predict_proba(frame)
+        np.testing.assert_array_equal(model.predict(frame), expected)
+        np.testing.assert_array_equal(probabilities[:, 1] >= 0.5, expected)
+        np.testing.assert_allclose(probabilities.sum(axis=1), 1)
+        assert np.isfinite(probabilities).all()
+        assert ((probabilities >= 0) & (probabilities <= 1)).all()
+        assert model_delay.evaluate_classification(expected, probabilities[:, 1])["f1"] == 1
+
+    def test_persistence_probability_preserves_continuous_ranking(self):
+        frame = pd.DataFrame({"prev_lateness_1": [0, 100, 299, 300, 301, 500, 900]})
+        scores = model_delay.PersistenceClassifier().predict_proba(frame)[:, 1]
+        assert (np.diff(scores) > 0).all()
+
     def test_persistence_returns_the_previous_delay(self):
         frame = _toy_frame()
         model = model_delay.PersistenceRegressor().fit(frame, frame["delay_seconds"])

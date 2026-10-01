@@ -1,4 +1,4 @@
-"""Tests for the supporting analyses behind the README's narrative claims."""
+"""Tests for the supporting analyses behind the report's narrative claims."""
 
 from __future__ import annotations
 

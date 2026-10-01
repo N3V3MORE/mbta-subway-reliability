@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from mbta_ds import validate
 
@@ -42,6 +43,41 @@ class TestCleanChecks:
         broken = clean_frame.assign(station_name="place-unknown")
         assert "stations left as raw ids (name lookup failed)" in _failed(
             validate.check_clean(broken))
+
+
+class TestFeatureTimingChecks:
+    def _built(self, clean_frame):
+        from mbta_ds import features
+        return features.build(clean_frame=clean_frame, no_cache=True)
+
+    def test_valid_feature_timing_passes(self, clean_frame):
+        assert _failed(validate.check_features(self._built(clean_frame))) == set()
+
+    @pytest.mark.parametrize("violation", ["future_source", "at_arrival", "missing_moment"])
+    def test_invalid_feature_timing_fails(self, clean_frame, violation):
+        frame = self._built(clean_frame)
+        if violation == "future_source":
+            frame.loc[0, "prev_stop_timestamp"] = frame.loc[0, "known_at"] + 1
+        elif violation == "at_arrival":
+            frame.loc[0, "known_at"] = frame.loc[0, "arrival_local"].timestamp()
+        else:
+            frame.loc[0, "known_at"] = float("nan")
+        assert "invalid prediction chronology" in _failed(validate.check_features(frame))
+
+    def test_old_feature_cache_requires_a_refresh(self, clean_frame):
+        frame = self._built(clean_frame).drop(columns="prev_stop_timestamp", errors="ignore")
+        assert "prediction timing diagnostics absent (refresh features)" in _failed(
+            validate.check_features(frame))
+
+    @pytest.mark.parametrize("value, stamp, check", [
+        ("prev_delay_2", "prev2_stop_timestamp", "second-stop delay observed after prediction"),
+        ("prev_dwell_seconds", "prev_dwell_end_timestamp", "completed dwell observed after prediction"),
+    ])
+    def test_a_future_optional_observation_cannot_survive_validation(self, clean_frame, value, stamp, check):
+        frame = self._built(clean_frame)
+        row = frame.index[frame[value].notna()][0]
+        frame.loc[row, stamp] = frame.loc[row, "known_at"] + 1
+        assert check in _failed(validate.check_features(frame))
 
 
 class TestWeatherChecks:

@@ -296,7 +296,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("figures", help="render interactive and static figures")
     p.set_defaults(func=stage_figures)
 
-    p = sub.add_parser("extras", help="supporting analyses behind the README's narrative claims")
+    p = sub.add_parser("extras", help="supporting analyses behind the report's narrative claims")
     p.set_defaults(func=stage_extras)
 
     p = sub.add_parser("segments", help="where the T loses time: running and platform time lost, per place")

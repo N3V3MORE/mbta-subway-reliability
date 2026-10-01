@@ -7,7 +7,7 @@ Two analysis tracks share one dataset builder:
   features; then cluster stations by reliability.
 * Track B -- cluster stations by ridership demand profile.
 
-See ``README.md`` for the full write-up and ``cli.py`` for the entry point.
+See ``REPORT.md`` for the full write-up and ``cli.py`` for the entry point.
 """
 
 __version__ = "0.1.0"

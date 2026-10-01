@@ -124,6 +124,72 @@ class TestPropagationFeatures:
         assert np.isnan(other["prev_delay_1"].iloc[0])
 
 
+class TestPredictionTiming:
+    def _trip(self, stops=13):
+        frame = pd.DataFrame(make_raw_trip(
+            "timing", SERVICE_DATE, stops=stops, delay_schedule=(10,) * stops))
+        frame["delay_seconds"] = clean.compute_delay(frame)
+        frame["lateness_seconds"] = frame["delay_seconds"]
+        return frame
+
+    @pytest.mark.parametrize("horizon", [1, 3, 5, 10])
+    @pytest.mark.parametrize("timing", ["before_source", "at_target", "after_target"])
+    def test_impossible_prediction_moment_is_not_a_valid_target(self, horizon, timing):
+        frame = self._trip()
+        target = horizon + 1
+        source = target - horizon
+        departed_row = source + 1
+        moment = {
+            "before_source": frame.loc[source, "stop_timestamp"] - 1,
+            "at_target": frame.loc[target, "stop_timestamp"],
+            "after_target": frame.loc[target, "stop_timestamp"] + 1,
+        }[timing]
+        frame.loc[departed_row, "move_timestamp"] = moment
+        out = features.add_propagation_features(frame, horizon=horizon)
+        assert not out.loc[target, "prediction_timing_valid"]
+
+    @pytest.mark.parametrize("horizon", [1, 3, 5, 10])
+    def test_missing_departure_keeps_only_information_known_at_arrival(self, horizon):
+        frame = self._trip()
+        target = horizon + 1
+        source = target - horizon
+        frame.loc[source + 1, "move_timestamp"] = np.nan
+        out = features.add_propagation_features(frame, horizon=horizon)
+        assert out.loc[target, "prediction_timing_valid"]
+        assert out.loc[target, "known_at"] == frame.loc[source, "stop_timestamp"]
+        assert out.loc[target, "prev_delay_1"] == frame.loc[source, "delay_seconds"]
+        assert pd.isna(out.loc[target, "prev_dwell_seconds"])
+        assert pd.isna(out.loc[target, "prev_headway_seconds"])
+        assert pd.isna(out.loc[target, "prev_lateness_1"])
+
+    def test_an_older_stop_observed_later_cannot_supply_the_trend(self):
+        frame = self._trip()
+        frame.loc[1, "stop_timestamp"] = frame.loc[3, "move_timestamp"] + 1
+        out = features.add_propagation_features(frame)
+        assert out.loc[3, "prediction_timing_valid"]
+        assert pd.isna(out.loc[3, "prev_delay_2"])
+        assert pd.isna(out.loc[3, "delay_trend"])
+
+    def test_unfinished_dwell_and_departure_headway_are_unknown(self):
+        frame = self._trip()
+        frame.loc[2, "dwell_time_seconds"] = 90
+        out = features.add_propagation_features(frame)
+        assert out.loc[3, "prediction_timing_valid"]
+        assert pd.isna(out.loc[3, "prev_dwell_seconds"])
+        assert pd.isna(out.loc[3, "prev_headway_seconds"])
+        assert pd.isna(out.loc[3, "prev_lateness_1"])
+
+    def test_excluding_a_target_does_not_change_the_next_stops_lag(self, clean_frame):
+        frame = clean_frame.copy()
+        bad = frame.index[(frame["trip_id"] == "1001") & (frame["stop_sequence"] == 3)][0]
+        source = frame.index[(frame["trip_id"] == "1001") & (frame["stop_sequence"] == 2)][0]
+        frame.loc[bad, "move_timestamp"] = frame.loc[source, "stop_timestamp"] - 1
+        built = features.build(clean_frame=frame, no_cache=True)
+        assert not ((built["trip_id"] == "1001") & (built["stop_sequence"] == 3)).any()
+        following = built.loc[(built["trip_id"] == "1001") & (built["stop_sequence"] == 4)]
+        assert following["prev_delay_1"].item() == frame.loc[bad, "delay_seconds"]
+
+
 def _arrivals_at(*local_times: str, route: str = "Red") -> pd.DataFrame:
     """Minimal rows with a scheduled arrival at each given local time."""
     stamps = pd.to_datetime(list(local_times)).tz_localize(config.SERVICE_TZ)
@@ -414,7 +480,9 @@ class TestFeatureGroups:
     def test_previous_lateness_is_the_last_stop_not_this_one(self, clean_frame):
         out = features.add_propagation_features(clean_frame)
         for _, trip in out.groupby(clean.RUN_KEY, sort=False):
-            assert trip["prev_lateness_1"].iloc[1:].tolist() == trip["lateness_seconds"].iloc[:-1].tolist()
+            known = trip["prev_lateness_1"].notna()
+            np.testing.assert_array_equal(trip.loc[known, "prev_lateness_1"],
+                                          trip["lateness_seconds"].shift().loc[known])
             assert np.isnan(trip["prev_lateness_1"].iloc[0])
 
     def test_ablation_order_is_cumulative(self):
@@ -425,6 +493,13 @@ class TestFeatureGroups:
 
 
 class TestBuildGuard:
+    def test_old_cached_features_cannot_be_used_without_rebuilding(self, tmp_path, monkeypatch):
+        path = tmp_path / "features.parquet"
+        pd.DataFrame({"prev_delay_1": [10.0]}).to_parquet(path)
+        monkeypatch.setattr(features, "OUT_PATH", path)
+        with pytest.raises(ValueError, match="features --refresh"):
+            features.load()
+
     def test_missing_declared_feature_raises(self, monkeypatch, clean_frame):
         """A declared feature that is never produced must fail loudly."""
         monkeypatch.setitem(

@@ -36,7 +36,6 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = $PSScriptRoot
 Set-Location $repoRoot
 $env:PYTHONPATH = Join-Path $repoRoot 'src'
-if ($Run) { $env:MBTA_RUN = $Run }
 # The project's virtual environment when there is one: a scheduled task starts
 # without it activated, and the first `python` on PATH may lack the pinned packages.
 $venvPython = Join-Path $repoRoot '.venv\Scripts\python.exe'
@@ -63,6 +62,10 @@ function Remove-Paths {
     }
 }
 
+# A named run applies to this invocation and its child stages, not later calls.
+$originalRun = $env:MBTA_RUN
+try {
+if ($Run) { $env:MBTA_RUN = $Run }
 switch ($Target) {
     'help' {
         Write-Host @"
@@ -167,4 +170,7 @@ Targets:
     'distclean' {
         Remove-Paths @('data\processed', 'reports', 'data\raw', 'data\analysis_window.json')
     }
+}
+} finally {
+    if ($Run) { $env:MBTA_RUN = $originalRun }
 }

@@ -84,7 +84,7 @@ function AcrossPeriods({ results }: { results: Results }) {
   return (
     <section className="panel-section">
       <h2>Every period</h2>
-      <p className="hint">Average next-stop error. The model was designed on spring and winter; July–September was run once, afterwards.</p>
+      <p className="hint">Average next-stop error. The model was designed on spring and winter; July–September checks a later period. The report records subsequent corrections.</p>
       <Dumbbell format={seconds} rows={rows} />
       <TableView columns={['Period', 'Rule of thumb', 'Model', 'Smaller by']} rows={rows.map((r) => [r.label, seconds(r.from), seconds(r.to), pct(1 - r.to / r.from)])} />
     </section>

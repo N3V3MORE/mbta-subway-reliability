@@ -33,7 +33,7 @@ export function StoryPanel({ network, onView, results }: { network: PreparedNetw
           <a className="chapter-link" href={chapter.explore.href}>{chapter.explore.label}<ArrowRight size={15} /></a>
         </section>
       ))}
-      <p className="story-end">Every number here comes from the project’s pipeline; the method, and everything left out, is in the README.</p>
+      <p className="story-end">Every number here comes from the project’s pipeline; the method, and everything left out, is in REPORT.md.</p>
     </div>
   )
 }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from datetime import date
 
 import pytest
@@ -80,3 +81,25 @@ def test_service_day_constants_are_consistent():
     # which is exactly why the cleaning anchor must be local midnight.
     assert config.SECONDS_PER_DAY == 86_400
     assert config.LATE_THRESHOLD_SECONDS == 300
+
+
+@pytest.mark.skipif(os.name != "nt", reason="The Windows runner needs PowerShell")
+@pytest.mark.parametrize("original_run", [None, "previous-run"])
+def test_windows_runner_restores_the_callers_run_selection(original_run):
+    env = os.environ.copy()
+    if original_run is None:
+        env.pop("MBTA_RUN", None)
+    else:
+        env["MBTA_RUN"] = original_run
+    runner = str(config.ROOT / "make.ps1").replace("'", "''")
+    expected = "$null" if original_run is None else f"'{original_run}'"
+    command = (
+        f"& '{runner}' help -Run winter *> $null\n"
+        f"if ($env:MBTA_RUN -ne {expected}) {{ throw 'Run selection leaked to the caller' }}"
+    )
+    result = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+         "-Command", command],
+        cwd=config.ROOT, env=env, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr

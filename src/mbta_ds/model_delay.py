@@ -355,8 +355,13 @@ class PersistenceClassifier:
 
     def predict_proba(self, X):
         prev = pd.to_numeric(X[self.column]).to_numpy(dtype=float)
-        proba = np.where(np.isnan(prev), 0.5,
+        below_half = np.nextafter(0.5, 0.0)
+        proba = np.where(np.isnan(prev), below_half,
                          np.clip(0.5 + (prev - self.threshold) / 3600.0, 0.0, 1.0))
+        # Evaluation labels scores >= 0.5 as late. Keep its decision identical
+        # to predict(), including equality, missing values and rounding near it.
+        proba = np.where(prev > self.threshold, np.maximum(proba, 0.5),
+                         np.minimum(proba, below_half))
         return np.column_stack([1 - proba, proba])
 
     def predict(self, X):
@@ -920,9 +925,10 @@ def run_horizons(*, quick: bool, cutoff) -> pd.DataFrame:
     horizons = HORIZONS[:2] if quick else HORIZONS
     network = set(features.FEATURE_GROUPS["network"])
     key = ["service_date", "trip_id", "stop_id"]
-    common = None   # arrivals scorable at the longest horizon, hence at every one
+    common = None   # reference arrivals scorable at the longest horizon
     with Progress(len(horizons), "prediction horizon") as progress:
-        # Longest horizon first: its test arrivals are the common set.
+        # Compare each horizon with its overlap with the longest-horizon test set.
+        # Timing exclusions mean shorter horizons need not contain every reference arrival.
         for k in sorted(horizons, reverse=True):
             frame = features.build(horizon=k, no_cache=True,
                                    max_rows=features.QUICK_MAX_ROWS if quick else None)

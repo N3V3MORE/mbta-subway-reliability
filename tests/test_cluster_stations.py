@@ -228,7 +228,7 @@ class TestDemandCoverageFilter:
 
     def test_low_coverage_stations_are_excluded(self, monkeypatch):
         monkeypatch.setattr(cluster_stations.collect_ridership, "load_raw", self._raw)
-        shape, coverage = cluster_stations.demand_matrix()
+        shape, _ = cluster_stations.demand_matrix()
         assert "Good" in shape.index
         assert "Sparse" not in shape.index
 

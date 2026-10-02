@@ -19,7 +19,7 @@ import gzip
 import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -66,7 +66,7 @@ def flatten_records(payload: dict, resource: str, fetch_ts: float) -> list[dict]
         row: dict = {
             "_resource": resource,
             "_fetch_ts": fetch_ts,
-            "_fetched_at": datetime.fromtimestamp(fetch_ts, tz=timezone.utc).isoformat(),
+            "_fetched_at": datetime.fromtimestamp(fetch_ts, tz=UTC).isoformat(),
             "id": item.get("id"),
         }
         for key, value in (item.get("attributes") or {}).items():
@@ -202,7 +202,7 @@ def collect(
 
     deadline = time.monotonic() + minutes * 60
     polls = 0
-    totals = {resource: 0 for resource in resources}
+    totals = dict.fromkeys(resources, 0)
 
     while True:
         counts = poll_once(session, resources=resources)

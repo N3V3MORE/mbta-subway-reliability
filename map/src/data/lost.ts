@@ -26,7 +26,7 @@ export type Place = {
   parts: (LostStretch | LostPlatform)[]
 }
 
-export const stretchId = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`)
+const stretchId = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`)
 
 function combine(id: string, kind: Place['kind'], stations: string[], parts: (LostStretch | LostPlatform)[]): Place {
   const trains = parts.reduce((sum, p) => sum + p.trains, 0)

@@ -707,9 +707,9 @@ def build() -> dict:
     sections.append(_section(
         "Which stations see the most late trains?",
         f"{stations.index[0]} tops the list",
-        f"Share of arrivals where riders waited more than 5 minutes longer than planned, at "
-        f"each station with at least 2,000 arrivals. A station's figure reflects every line "
-        f"that calls there.",
+        "Share of arrivals where riders waited more than 5 minutes longer than planned, at "
+        "each station with at least 2,000 arrivals. A station's figure reflects every line "
+        "that calls there.",
         fig_stations(stations),
         _numbers(stations.assign(late_share=(stations["late_share"] * 100).round(1))
                  .rename(columns={"late_share": "Late (%)", "arrivals": "Arrivals"}))))

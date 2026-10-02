@@ -96,9 +96,9 @@ def _epoch_ms_to_date(value: object) -> date:
 # ---------------------------------------------------------------------------
 def _build_where(start: date, end: date) -> str:
     return (
-        "service_date >= timestamp '{start} 00:00:00' AND "
-        "service_date <= timestamp '{end} 23:59:59'"
-    ).format(start=start.isoformat(), end=end.isoformat())
+        f"service_date >= timestamp '{start.isoformat()} 00:00:00' AND "
+        f"service_date <= timestamp '{end.isoformat()} 23:59:59'"
+    )
 
 
 def _count(session: requests.Session, where: str) -> int:

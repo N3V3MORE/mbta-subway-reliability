@@ -37,7 +37,7 @@ def test_traversals_pair_consecutive_stops_of_one_run():
 def test_a_rare_pair_spanning_an_unrecorded_stop_is_not_a_stretch():
     frame = _frame()
     # Three trips never recorded B, so they appear to run A->C in one go.
-    skipped = pd.DataFrame(sum((_trip(f"s{i}", ["A", "C"], [np.nan, 130.0], [None, None]) for i in range(3)), []))
+    skipped = pd.DataFrame([row for i in range(3) for row in _trip(f"s{i}", ["A", "C"], [np.nan, 130.0], [None, None])])
     rows = segments.traversals(pd.concat([frame, skipped], ignore_index=True))
     assert ("A", "C") not in set(zip(rows["from_station"], rows["to_station"]))
 

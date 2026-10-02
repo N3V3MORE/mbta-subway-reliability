@@ -86,7 +86,7 @@ class TestProgressCounter:
 
     def test_eta_is_absent_before_the_first_step(self, caplog):
         caplog.set_level(logging.INFO, logger="mbta_ds.progress")
-        with progress.Progress(3, "fresh") as bar:
+        with progress.Progress(3, "fresh"):
             pass
         # The start line must not claim an ETA it cannot know yet.
         start_lines = [r.message for r in caplog.records

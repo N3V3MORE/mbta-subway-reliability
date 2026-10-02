@@ -255,9 +255,7 @@ def _fit(model, train: pd.DataFrame, numeric: list[str], categorical: list[str],
     if split is None:
         return pipeline.fit(train[cols], train[target].to_numpy(dtype=float))
     fit_rows, val_rows = split
-    val = {"X_val": val_rows[cols], "y_val": val_rows[target].to_numpy(dtype=float)}
-    if not isinstance(pipeline, (ChangeRegressor, RunTimeChangeRegressor)):
-        val = {f"model__{k}": v for k, v in val.items()}
+    val = _val_args(pipeline, val_rows[cols], val_rows[target].to_numpy(dtype=float))
     return pipeline.fit(fit_rows[cols], fit_rows[target].to_numpy(dtype=float), **val)
 
 
@@ -369,6 +367,14 @@ class PersistenceClassifier:
         return (pd.to_numeric(X[self.column]).to_numpy(dtype=float) > self.threshold).astype(int)
 
 
+def _val_args(estimator, X_val, y_val) -> dict:
+    """An early-stopping set for ``estimator.fit``, addressed to the model inside a Pipeline."""
+    extra = {"X_val": X_val, "y_val": y_val}
+    if isinstance(estimator, Pipeline):
+        extra = {f"model__{k}": v for k, v in extra.items()}
+    return extra
+
+
 class GroupMeanRegressor:
     """Predict the training mean of the target within ``(route, hour)`` groups."""
 
@@ -419,10 +425,8 @@ class ChangeRegressor(BaseEstimator, RegressorMixin):
         extra = {}
         if X_val is not None:
             # The early-stopping set is judged on the same target: the change.
-            extra = {"X_val": X_val,
-                     "y_val": np.asarray(y_val, dtype=float) - self.base_.predict(X_val)}
-            if isinstance(self.estimator, Pipeline):
-                extra = {f"model__{k}": v for k, v in extra.items()}
+            extra = _val_args(self.estimator, X_val,
+                              np.asarray(y_val, dtype=float) - self.base_.predict(X_val))
         self.estimator_ = clone(self.estimator).fit(X, change, **extra)
         return self
 
@@ -504,10 +508,8 @@ class RunTimeChangeRegressor(BaseEstimator, RegressorMixin):
         extra = {}
         if X_val is not None:
             val_lookup = self.base_.predict(X_val)
-            extra = {"X_val": self._with_lookup(X_val, val_lookup),
-                     "y_val": np.asarray(y_val, dtype=float) - val_lookup}
-            if isinstance(self.estimator, Pipeline):
-                extra = {f"model__{k}": v for k, v in extra.items()}
+            extra = _val_args(self.estimator, self._with_lookup(X_val, val_lookup),
+                              np.asarray(y_val, dtype=float) - val_lookup)
         self.estimator_ = clone(self.estimator).fit(self._with_lookup(X, lookup), y - lookup, **extra)
         return self
 

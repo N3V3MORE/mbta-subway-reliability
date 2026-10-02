@@ -88,8 +88,7 @@ def raw_frame() -> pd.DataFrame:
     blank = frame.iloc[1].copy()
     blank["stop_id"] = "stop-null"
     blank["stop_timestamp"] = np.nan
-    frame = pd.concat([frame, blank.to_frame().T], ignore_index=True)
-    return frame
+    return pd.concat([frame, blank.to_frame().T], ignore_index=True)
 
 
 @pytest.fixture

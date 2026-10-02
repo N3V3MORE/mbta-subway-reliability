@@ -12,6 +12,7 @@ class TestDownsampleCurve:
     def test_short_curves_are_untouched(self):
         x, y = viz._downsample_curve([0, 0.5, 1], [0, 0.7, 1], limit=10)
         assert list(x) == [0, 0.5, 1]
+        assert list(y) == [0, 0.7, 1]
 
     def test_thinned_curve_still_ends_at_its_last_point(self):
         """A thinned ROC curve must still reach (1, 1)."""

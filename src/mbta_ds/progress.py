@@ -67,7 +67,7 @@ class Progress:
         self.total = max(int(self.total), 1)
         self.log_every = max(int(self.log_every), 1)
 
-    def __enter__(self) -> "Progress":
+    def __enter__(self) -> Progress:
         self.started = time.monotonic()
         self.done = 0
         if self.announce_start:

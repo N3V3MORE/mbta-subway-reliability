@@ -53,13 +53,19 @@ code { background: var(--surface-2); border-radius: 4px; font-size: 12px; paddin
 }
 .wordmark { align-items: center; display: flex; font-size: 17px; font-weight: 800; gap: 8px; letter-spacing: -0.045em; text-decoration: none; white-space: nowrap; }
 .wordmark svg { height: 20px; width: 20px; }
-.nav { align-self: stretch; display: flex; gap: 4px; }
+/* Labels stay on one line; when the bar is too narrow the row scrolls sideways instead of wrapping "Time lost" in two. */
+.nav { align-self: stretch; display: flex; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .nav a {
-  align-items: center; border-bottom: 2px solid transparent; color: var(--muted); display: flex;
-  font-size: 13.5px; font-weight: 600; padding: 2px 10px 0; text-decoration: none;
+  align-items: center; border-bottom: 2px solid transparent; color: var(--muted); display: flex; flex: none;
+  font-size: 13.5px; font-weight: 600; padding: 2px 10px 0; text-decoration: none; white-space: nowrap;
 }
 .nav a:hover { color: var(--text); }
 .nav a[aria-current='page'] { border-bottom-color: var(--accent); color: var(--text); }
+.repo-link {
+  align-items: center; border-radius: 6px; color: var(--muted); display: flex; flex: none;
+  height: 34px; justify-content: center; margin-left: -16px; width: 34px;
+}
+.repo-link:hover { background: var(--surface-2); color: var(--text); }
 
 /* Each view gets the room its content needs: the map views keep most of the screen,
    the reading views split it, the table and the charts take more. Switching views
@@ -384,15 +390,26 @@ td { font-variant-numeric: tabular-nums; }
 /* ---------------------------------------------------------------- narrow screens */
 @media (max-width: 1100px) {
   .workspace[data-page='results'], .workspace[data-page='stations'] { --panel-width: 480px; }
+  /* A tighter top bar keeps every view's tab on one row. */
+  .topbar { gap: 16px; }
+  .nav { flex: none; }
+  .nav a { padding: 2px 8px 0; }
+  .station-search { width: 220px; }
+  .repo-link { margin-left: -6px; }
 }
 
-@media (max-width: 820px) {
+/* Too narrow for tabs and search side by side: the tabs take their own row. */
+@media (max-width: 960px) {
   .app { --topbar: auto; }
   .topbar { flex-wrap: wrap; gap: 8px 12px; padding: 10px 14px 0; }
   .station-search { flex: 1; margin-left: 0; width: auto; }
-  .station-search-field input { font-size: 16px; }
-  .nav { flex-basis: 100%; margin: 0 -14px; overflow-x: auto; padding: 0 8px; }
+  .nav { flex: 0 0 100%; margin: 0 -14px; padding: 0 8px; }
   .nav a { min-height: 40px; }
+  .repo-link { margin-left: 0; }
+}
+
+@media (max-width: 820px) {
+  .station-search-field input { font-size: 16px; }
   .workspace { display: flex; flex-direction: column; }
   /* Stacked: the transport bar sits under the map rather than over it. */
   .stage { display: grid; flex: 0 0 44dvh; grid-template-rows: minmax(0, 1fr) auto; order: -1; }

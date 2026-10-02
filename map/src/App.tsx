@@ -1,3 +1,4 @@
+import { Github } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MapKey } from './components/MapKey'
 import { StationSearch } from './components/StationSearch'
@@ -6,6 +7,7 @@ import { clusterLabel, lineName, seconds as formatSeconds } from './data/labels'
 import { loadNetwork, loadReplay, loadResults, METRICS, type MetricId, type PreparedNetwork } from './data/network'
 import { activeIncidents, bandOf, DELAY_BANDS, type PreparedReplay, stopAt, vehiclesAt } from './data/replay'
 import { type LostMetric, lostPlaces, placeName, stretchGeometry, valueOf } from './data/lost'
+import { REPO_URL } from './links'
 import type { LostLayer, Mode, Selection } from './map/NetworkMap'
 import { AboutPanel } from './panels/AboutPanel'
 import { LostPanel } from './panels/LostPanel'
@@ -258,6 +260,9 @@ function Workspace({ network, results }: { network: PreparedNetwork; results: Re
           ))}
         </nav>
         <StationSearch lineById={network.lineById} onSelect={(id) => { go('network', id); setFocus({ stationId: id }) }} stations={network.stations} />
+        <a aria-label="Source on GitHub" className="repo-link" href={REPO_URL} rel="noreferrer" target="_blank" title="Source on GitHub">
+          <Github aria-hidden="true" size={18} />
+        </a>
       </header>
 
       <div className="workspace" data-page={page}>

@@ -3,6 +3,11 @@
 How late Boston's subway runs, whether a train's next-stop delay can be predicted,
 and where the network loses time, from 3.9 million MBTA stop records.
 
+**[Open the app](https://n3v3more.github.io/mbta-subway-reliability/)** · [full report](REPORT.md)
+
+Python (pandas, scikit-learn) for the pipeline and models; React, TypeScript and
+MapLibre for the 3D map.
+
 ![The Story view: findings chapter by chapter, with the 3D map following along](map/docs/story.png)
 
 ## What it found
@@ -23,7 +28,9 @@ and where the network loses time, from 3.9 million MBTA stop records.
 
 ## See it
 
-Everything comes pre-built; nothing needs installing.
+The app is live at <https://n3v3more.github.io/mbta-subway-reliability/>, with
+the reports under [`/reports/`](https://n3v3more.github.io/mbta-subway-reliability/reports/story.html).
+To view it offline, everything comes pre-built and nothing needs installing:
 
 - The app is built into `docs/`. Browsers won't load its data from a
   double-clicked file, so serve the folder with Python and open
@@ -43,6 +50,8 @@ Everything comes pre-built; nothing needs installing.
 - Re-run the analysis: `make all` (or `.\make.ps1 all` on Windows), Python
   3.11–3.13. 260 tests run with `make test`.
 - Refresh the ready-to-view app after either: `make site`.
+- The live site rebuilds itself from `map/` and `reports/` on every push to
+  `main` ([`pages.yml`](.github/workflows/pages.yml)), so it needs no `make site`.
 
 ## More
 

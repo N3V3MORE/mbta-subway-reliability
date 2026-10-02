@@ -1,5 +1,6 @@
 import { CheckCircle2, CircleAlert } from 'lucide-react'
 import { formatDate } from '../data/format'
+import { REPO_URL, REPORTS_URL } from '../links'
 import type { PreparedNetwork } from '../data/network'
 import type { Results } from '../types'
 
@@ -32,6 +33,36 @@ export function AboutPanel({ network, results }: { network: PreparedNetwork; res
           and how well a train’s next-stop delay can be predicted. A CS 506 project.
         </p>
       </header>
+
+      <section className="panel-section">
+        <h2>Code and write-up</h2>
+        <dl className="pair-list is-stacked">
+          <div>
+            <dt><a href={REPO_URL} rel="noreferrer" target="_blank">Source on GitHub</a></dt>
+            <dd>The Python pipeline (collection, cleaning, features, models, 260 tests) and this app.</dd>
+          </div>
+          <div>
+            <dt><a href={`${REPO_URL}/blob/main/REPORT.md`} rel="noreferrer" target="_blank">Full report</a></dt>
+            <dd>Data, cleaning, models, evaluation and limitations, section by section.</dd>
+          </div>
+          {REPORTS_URL ? (
+            <>
+              <div>
+                <dt><a href={`${REPORTS_URL}story.html`} rel="noreferrer" target="_blank">The results in plain words</a></dt>
+                <dd>Eight interactive charts, one question each.</dd>
+              </div>
+              <div>
+                <dt><a href={`${REPORTS_URL}report.html`} rel="noreferrer" target="_blank">Every table and figure</a></dt>
+                <dd>
+                  The generated report for spring. Also for{' '}
+                  <a href={`${REPORTS_URL}winter/report.html`} rel="noreferrer" target="_blank">winter</a> and the{' '}
+                  <a href={`${REPORTS_URL}holdout/report.html`} rel="noreferrer" target="_blank">July–September holdout</a>.
+                </dd>
+              </div>
+            </>
+          ) : null}
+        </dl>
+      </section>
 
       <section className="panel-section prose">
         <h2>What “late” means</h2>
